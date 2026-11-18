@@ -44,6 +44,7 @@ catalog = json.loads((root / 'season-catalog.json').read_text(encoding='utf-8'))
 uncovered = {driver['driver'] for driver in cache['official']['standings']} - portraits.keys()
 assert not uncovered, f'Missing official 2026 portraits: {uncovered}'
 logo = asset((root / 'f1-logo.webp'), 'image/webp')
+favicon = asset(root / 'favicon.png', 'image/png')
 read = lambda name: (root / name).read_text(encoding='utf-8-sig')
 def inline_json(value):
     return json.dumps(value, ensure_ascii=True, separators=(',', ':')).replace('<', '\\u003c')
@@ -55,6 +56,7 @@ app = ('\n'.join(read(file) for file in (
 app = app.replace('/*__RACE_CACHE__*/ {}', inline_json(cache))
 app = app.replace('/*__CATALOG__*/ []', inline_json(catalog))
 template = read('index.html').replace('/*__STYLES__*/', css).replace('/*__LOGO__*/', logo)
+template = template.replace('/*__FAVICON__*/', favicon)
 template = template.replace('/*__DATA__*/', read('race-data.js'))
 car_files = sorted((site / 'assets' / 'cars').glob('*.webp'))
 assert len(car_files) == 11
