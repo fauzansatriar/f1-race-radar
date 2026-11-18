@@ -12,6 +12,7 @@
 
 - The brake gauge and trace interpolate between timestamped on/off samples. The gauge label shows the recorded pedal state.
 - The mobile telemetry comparison includes the throttle and brake history bars for both drivers.
+- The isometric cover and screenshot gallery show the updated desktop and mobile radar.
 - The red FR mark appears in the browser tab and on the home screen when the PWA is installed. The browser tab and installed app use the name F1 Race Radar.
 - The radar uses a plain Lap Pace label, and the footer shows timing and connection messages without a provider credit or sync confirmation.
 - The PWA is deployed over HTTPS on GitHub Pages and opens directly to 1v1 Radar when installed.
@@ -32,7 +33,7 @@
 Liam Lawson and Charles Leclerc battle for P8 at Interlagos on lap 67 of the 2026 Brazilian GP.
 
 <p align="center">
-  <a href="docs/media/mobile-radar.png"><img src="docs/media/mobile-radar.png" alt="Mobile 1v1 radar with the Lawson–Leclerc gap, telemetry gauges, replay speeds, and lap slider" width="260"></a>
+  <a href="docs/media/mobile-radar.png"><img src="docs/media/mobile-radar.png" alt="Mobile 1v1 radar with the Lawson–Leclerc gap, throttle and brake history bars, replay speeds, and lap slider" width="260"></a>
   <a href="docs/media/mobile-lap-picker.png"><img src="docs/media/mobile-lap-picker.png" alt="Mobile lap picker with lap 67 selected and a Finish option" width="260"></a>
 </p>
 
