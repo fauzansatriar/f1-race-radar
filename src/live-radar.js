@@ -273,7 +273,7 @@ function acceptLiveUpdate({ session, connected, rows }) {
 }
 
 async function connectLive() {
-  if (liveFeed.source || location.protocol === "file:" || typeof EventSource !== "function") return;
+  if (location.protocol === "file:" || typeof EventSource !== "function") return;
   try {
     const response = await fetch("./api/live/status", { cache: "no-store", signal: AbortSignal.timeout(5000) });
     if (!response.ok || !response.headers.get("Content-Type")?.includes("application/json")) return;
@@ -293,6 +293,7 @@ async function connectLive() {
       refreshLiveStatus();
       if (source.readyState === EventSource.CLOSED) {
         liveFeed.source = null;
+        setTimeout(() => { if (!document.hidden) void connectLive(); }, 8000);
       }
     };
   } catch {

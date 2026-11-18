@@ -50,6 +50,7 @@ class Feed:
         self.lock = threading.Lock()
         self.session = None
         self.connected = False
+        self.upstream = 'connecting'
         self.revision = self.reset_at = 0
         self.rows = {topic: {} for topic in LIMITS}
         self.events = deque(maxlen=2400)
@@ -208,6 +209,7 @@ class OpenF1Relay:
                 now = datetime.now(timezone.utc)
                 if time.monotonic() >= discover_at:
                     races = self.get('sessions', year=now.year, session_name='Race')
+                    self.feed.upstream = 'ready'
                     session = upcoming_race(races, now)
                     if session:
                         meeting = session['meeting_key']
@@ -238,6 +240,7 @@ class OpenF1Relay:
                     active_key = None
                     self.stop_mqtt()
             except (OSError, KeyError, ValueError) as error:
+                self.feed.upstream = 'retrying'
                 print(f'OpenF1 relay retrying after {type(error).__name__}', file=sys.stderr)
                 time.sleep(15)
             time.sleep(2)
@@ -248,7 +251,11 @@ class RadarHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == '/api/live/status':
-            payload = json.dumps({'configured': self.server.live_configured}).encode()
+            configured = self.server.live_configured
+            payload = json.dumps({
+                'configured': configured,
+                'openf1': self.server.feed.upstream if configured else 'disabled',
+            }).encode()
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Cache-Control', 'no-store')

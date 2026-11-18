@@ -13,6 +13,7 @@
 - The default view follows the active GP when OpenF1 timing becomes available. A common clock keeps the 1v1 radar, telemetry, and GPS in sync, and the app displays the delay behind the race.
 - The GP picker includes upcoming races, their scheduled start times, and the completed 2026 replay archive. The catalog refreshes automatically while the app is open.
 - Live viewing shows reconnecting, delayed, and chequered-flag states. Archived races still support lap selection and 1×–8× playback.
+- The Render Blueprint deploys the installable PWA and OpenF1 relay together over HTTPS. Its status endpoint reports whether the relay has reached OpenF1.
 
 ## MVP features
 
@@ -68,6 +69,12 @@ The server serves the PWA and relays OpenF1 MQTT updates over a same-origin even
 
 For phone access, run `python server.py --host 0.0.0.0` on a host that runs long-lived processes. Serve the app over HTTPS and forward `/api/live` without response buffering. The static `dist/` build can still be hosted on its own for the schedule and archived race replay.
 
+### Deploy on Render
+
+Create a Blueprint from this repository using `render.yaml`. When Render prompts for `OPENF1_USERNAME` and `OPENF1_PASSWORD`, enter the values in the Render dashboard. Open the resulting HTTPS URL on your phone to install the PWA.
+
+On the deployed URL, `/api/live/status` reports `openf1: "ready"` once the relay can authenticate and read the race schedule. The live stream starts around the next race. Render Free sleeps when idle, so the first visit after a break can take longer.
+
 ## Project structure
 
 | Path | Contents |
@@ -77,6 +84,7 @@ For phone access, run `python server.py --host 0.0.0.0` on a host that runs long
 | [`docs/media/`](docs/media/) | Isometric cover and full-resolution screenshots |
 | [`build.py`](build.py) | Python script that builds the static app |
 | [`server.py`](server.py) | Optional live-data relay and PWA server |
+| [`render.yaml`](render.yaml) | HTTPS web service and server-side secret configuration |
 
 ## Data sources
 
