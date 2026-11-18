@@ -468,6 +468,7 @@ body[data-view="data"] .telemetry { display: none; }
 .speed-option:hover { background: #383a44; border-color: #747681; }
 .speed-option[aria-pressed="true"] { background: var(--yellow); border-color: var(--yellow); color: #171405; }
 .replay-status { display: grid; gap: 2px; }
+.replay-status:not(:has(.source-status:not(:empty))) { display: none; }
 .source-status:empty { display: none; }
 .dashboard[aria-busy="true"] { opacity: .65; }
 @media (max-width: 1240px) {
@@ -879,7 +880,7 @@ body[data-view="data"] .telemetry { display: none; }
           </div>
           <div class="momentum">
             <div>CLOSING RATE <strong id="closing">—</strong></div>
-            <div>LAP PACE Δ <strong id="traction">—</strong></div>
+            <div>LAP PACE <strong id="traction">—</strong></div>
           </div>
         </div>
       </section>
@@ -979,7 +980,7 @@ body[data-view="data"] .telemetry { display: none; }
     </div>
     <label class="scrubber"><span class="sr-only">Race replay timeline</span><input id="scrubber" type="range" aria-label="Seek archived race replay" min="0" max="1" value="0"></label>
     <time id="replay-clock"></time>
-    <div class="replay-status"><span class="source-status" id="source-status" role="status">OpenF1 · Jolpica</span><span class="source-status" id="telemetry-status" role="status"></span><span class="source-status" id="live-delay"></span></div>
+    <div class="replay-status"><span class="source-status" id="source-status" role="status"></span><span class="source-status" id="telemetry-status" role="status"></span><span class="source-status" id="live-delay"></span></div>
     <button class="sync-button" id="sync-race" type="button">Refresh data</button>
   </footer>
   <dialog class="race-picker" id="race-picker" aria-labelledby="picker-title">
@@ -1776,10 +1777,9 @@ function liveStatus(recording) {
     const scheduled = new Date(recording.scheduled).toISOString().slice(0, 16).replace("T", " ");
     return ["UPCOMING", now < recording.scheduled ? `Scheduled ${scheduled} UTC` : "Waiting for race start", ""];
   }
-  const provider = recording.source === "public" ? "F1 public timing" : "OpenF1";
-  if (!navigator.onLine || !liveFeed.connected) return ["RECONNECTING", `Waiting for ${provider}`, ""];
+  if (!navigator.onLine || !liveFeed.connected) return ["RECONNECTING", "Waiting for timing updates", ""];
   const delay = Math.max(0, Math.round((now - state.time) / 1000));
-  return [now - recording.receivedAt > LIVE_STALE_MS ? "DELAYED" : "LIVE", provider, `${delay}s behind`];
+  return [now - recording.receivedAt > LIVE_STALE_MS ? "DELAYED" : "LIVE", "", `${delay}s behind`];
 }
 
 function refreshLiveStatus() {
@@ -2648,7 +2648,7 @@ async function selectGP(round) {
   if (round === race.official.round) {
     state.raceRequest = null;
     document.querySelector(".dashboard").removeAttribute("aria-busy");
-    text("source-status", "OpenF1 · Jolpica");
+    text("source-status", "");
     return;
   }
   const controller = new AbortController();
@@ -2672,7 +2672,7 @@ async function selectGP(round) {
     race = recording;
     renderCatalog();
     renderRace();
-    text("source-status", "OpenF1 · Jolpica");
+    text("source-status", "");
   } catch {
     if (!controller.signal.aborted) {
       $("gp-select").value = race.live ? liveChoice(race) : race.official.round;
@@ -2691,7 +2691,7 @@ async function syncRace() {
   if (button.disabled || !navigator.onLine) return;
   button.disabled = true;
   if (!race.live) {
-    if (!state.raceRequest) text("source-status", "Checking OpenF1 and Jolpica…");
+    if (!state.raceRequest) text("source-status", "Refreshing race data…");
     const activeIndex = blockIndex(race, state.time);
     const data = mediaState(race).get(activeIndex);
     if (data && (!data.telemetry || !data.locations)) {
@@ -2734,7 +2734,7 @@ async function syncRace() {
       if (!race.live && !state.changedRace && !state.raceRequest && state.timer === null &&
           catalog[0].round !== race.official.round && catalog[0].session) {
         await selectGP(catalog[0].round);
-      } else if (!race.live && !state.raceRequest) text("source-status", "OpenF1 · Jolpica synced");
+      } else if (!race.live && !state.raceRequest) text("source-status", "");
     } else if (!race.live && !state.raceRequest) {
       text("source-status", "Saved race list · API refresh unavailable");
     }
