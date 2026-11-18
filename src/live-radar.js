@@ -17,7 +17,7 @@ function newLiveRace(session) {
     live: true, session: session.session_key, circuit, scheduled, start: scheduled, end: Infinity,
     started: false, firstLap: Infinity, green: null, finished: null, latest: null, receivedAt: 0,
     shape: null, nextShapeCheck: 0, participants: {}, embeddedBlocks: [], lapClock: [],
-    official: { round: "live", year: session.year, name, shortName: name.replace(" Grand Prix", " GP"),
+    official: { round: "live", name, shortName: name.replace(" Grand Prix", " GP"),
       total: null, circuit, results: [] },
   };
 }

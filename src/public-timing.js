@@ -34,7 +34,6 @@ function readPublicSession(info) {
   return {
     session_key: info.Key,
     date_start: new Date(scheduled).toISOString(),
-    year: new Date(scheduled).getUTCFullYear(),
     meeting_name: info.Meeting?.Name,
     country_name: info.Meeting?.Country?.Name,
     circuit_short_name: info.Meeting?.Circuit?.ShortName,

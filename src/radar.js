@@ -527,7 +527,6 @@ function renderRace() {
   document.body.dataset.liveSource = race.live ? race.source ?? "" : "";
   $("live-indicator").hidden = !race.live;
   $("gp-select").value = race.live ? liveChoice(race) : race.official.round;
-  document.title = "F1 Race Radar — " + race.official.shortName + " " + (race.official.year ?? SEASON);
   text("lap-total", race.live ? "" : "/" + race.official.total);
   text("race-waiting-title", race.official.name);
   text("circuit-title", (race.circuit || race.official.circuit) + " · GPS");

@@ -8,9 +8,9 @@
 
 ## Latest update
 
-**18 November 2026 · FR favicon and radar cleanup**
+**18 November 2026 · FR home-screen icon and app name**
 
-- The red FR mark is now the browser-tab favicon.
+- The red FR mark appears in the browser tab and on the home screen when the PWA is installed. The browser tab and installed app use the name F1 Race Radar.
 - The radar uses a plain Lap Pace label, and the footer shows timing and connection messages without a provider credit or sync confirmation.
 - The PWA is deployed over HTTPS on GitHub Pages and opens directly to 1v1 Radar when installed.
 - The app connects directly to the public F1 timing feed without an account or API key. During an active race, it shows the running order, gaps, lap count, and timing delay. It reconnects automatically after a dropped connection.

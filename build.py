@@ -75,7 +75,7 @@ head = """<link rel="manifest" href="./manifest.webmanifest" crossorigin="use-cr
   <link rel="apple-touch-icon" href="./assets/icon-180.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Race Radar">"""
+  <meta name="apple-mobile-web-app-title" content="F1 Race Radar">"""
 menu = '<button class="sync-button install-button" type="button" id="install-pwa" hidden>Install app</button>'
 install = """<dialog class="install-help" id="install-help" aria-labelledby="install-title">
     <h2 id="install-title">Install F1 Race Radar</h2>
