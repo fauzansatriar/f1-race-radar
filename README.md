@@ -8,8 +8,10 @@
 
 ## Latest update
 
-**18 November 2026 · FR home-screen icon and app name**
+**18 November 2026 · Smooth brake display and mobile telemetry**
 
+- The brake gauge and trace interpolate between timestamped on/off samples. The gauge label shows the recorded pedal state.
+- The mobile telemetry comparison includes the throttle and brake history bars for both drivers.
 - The red FR mark appears in the browser tab and on the home screen when the PWA is installed. The browser tab and installed app use the name F1 Race Radar.
 - The radar uses a plain Lap Pace label, and the footer shows timing and connection messages without a provider credit or sync confirmation.
 - The PWA is deployed over HTTPS on GitHub Pages and opens directly to 1v1 Radar when installed.

@@ -561,7 +561,9 @@ body[data-view="data"] .telemetry { display: none; }
 
   .telemetry > h2 { margin: 0 0 6px 1px; font-size: 13px; }
   .telemetry-shell { display: flex; padding: 9px 7px; }
-  .telemetry-overlay, body[data-view="data"] .telemetry-overlay, .power-stripe, .power-cells { display: none; }
+  .telemetry-overlay, body[data-view="data"] .telemetry-overlay, .power-stripe { display: none; }
+  .power-cells { gap: 3px; margin-top: 8px; }
+  .power-cells i { height: 7px; aspect-ratio: auto; border-radius: 2px; }
   .speed-row { font-size: clamp(11px, 3.6vw, 16px); gap: 4px; }
   .speed-row strong { font-size: clamp(23px, 6.7vw, 32px); }
   #a-speed { color: var(--team-a); }

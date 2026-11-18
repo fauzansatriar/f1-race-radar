@@ -24,6 +24,8 @@ const elapsed = (time) => new Date(time).toISOString().slice(11, 19);
 const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)");
 const mobileLayout = matchMedia("(max-width: 670px), (max-width: 960px) and (max-height: 500px) and (pointer: coarse)");
 const CONTINUOUS_CAR = [1, 2];
+const BRAKE_CHANNEL = [3];
+const BRAKE_SPAN = 1200;
 const LOCATION = [1, 2];
 const INTERVAL = [1];
 const overlayChannels = [
@@ -281,7 +283,6 @@ function render() {
   text("closing", closing === null ? missing : signed(closing, 2) + "s / lap");
   if (!mobileLayout.matches) {
     $("history-plot").innerHTML = trendChart([history], [b.color], 197, 91, "Race gap in seconds");
-    updatePowerHistory(a, b, time);
   }
 
   const same = sameLaps(a, b, time);
@@ -335,9 +336,12 @@ function renderMotion(drawChart = false) {
   delta.classList.toggle("good", speedDelta !== null && speedDelta >= 0);
   [aCar, bCar].forEach((frame, i) => {
     updateGauge(state.power[i].gauges[0], frame?.[2]);
-    updateGauge(state.power[i].gauges[1], frame?.[3], true);
+    // The arc blends adjacent timed states. The label reports the actual on/off sample.
+    const brake = interpolateSample(data[i], time, BRAKE_CHANNEL, BRAKE_SPAN, 2100)?.[3];
+    updateGauge(state.power[i].gauges[1], brake, frame?.[3] ?? null);
   });
 
+  if (drawChart && view === "radar") updatePowerHistory([a, b], data, time);
   if (!mobileLayout.matches) {
     updateMap(a, b, time);
     if (drawChart && view === "radar") updateOverlay(data, time);
@@ -351,14 +355,15 @@ function power(driver) {
   </div>`;
 }
 
-function updatePowerHistory(a, b, time) {
-  [a, b].forEach((driver, index) => {
-    const data = mediaSamples(driver, "telemetry");
+function updatePowerHistory(drivers, data, time) {
+  drivers.forEach((driver, index) => {
     state.power[index].cells.forEach((node, i) => {
       const throttle = i < 9;
-      const value = recentSample(data, time - (8 - i % 9) * 1500)?.[throttle ? 2 : 3];
+      const channel = throttle ? 2 : 3;
+      const stamp = time - (8 - i % 9) * 1500;
+      const value = interpolateSample(data[index], stamp, [channel], throttle ? 2500 : BRAKE_SPAN, 2100)?.[channel];
       const tint = throttle ? driver.color : "#ee6b81";
-      const paint = value > 0 ? `color-mix(in srgb, ${tint} ${Math.round(value)}%, #33343d)` : "#33343d";
+      const paint = value > 0 ? `color-mix(in srgb, ${tint} ${Math.round(clamp(value, 0, 100))}%, #33343d)` : "#33343d";
       if (node.style.getPropertyValue("--cell") !== paint) node.style.setProperty("--cell", paint);
     });
   });
@@ -384,22 +389,24 @@ function updateOverlay(data, time) {
     const brake = offset === 3;
     const ys = (value) => (y + height * (1 - clamp(value / max, 0, 1))).toFixed(2);
     data.forEach((rows, driver) => {
-      let path = "", previous = -Infinity, previousValue = null;
+      let path = "", previous = -Infinity;
       const add = (stamp, value) => {
-        if (!Number.isFinite(value) || previous === stamp) return;
+        if (!Number.isFinite(value)) {
+          if (brake) previous = -Infinity;
+          return;
+        }
+        if (previous === stamp) return;
         const x = (24 + (stamp - cutoff) * 373 / 24000).toFixed(2);
-        const connect = stamp - previous <= 2400;
-        if (brake && connect && value !== previousValue) path += `L${x},${ys(previousValue)}`;
+        const connect = stamp - previous <= (brake ? BRAKE_SPAN : 2400);
         path += `${connect ? "L" : "M"}${x},${ys(value)}`;
         previous = stamp;
-        previousValue = value;
       };
-      const columns = brake ? [] : [offset];
-      add(cutoff, interpolateSample(rows, cutoff, columns, 2500, 2100)?.[offset]);
+      const span = brake ? BRAKE_SPAN : 2500;
+      add(cutoff, interpolateSample(rows, cutoff, [offset], span, 2100)?.[offset]);
       for (let i = startIndices[driver]; i < rows.length && rows[i][0] <= time; i++) {
         add(rows[i][0], rows[i][offset]);
       }
-      add(time, interpolateSample(rows, time, columns, 2500, 2100)?.[offset]);
+      add(time, interpolateSample(rows, time, [offset], span, 2100)?.[offset]);
       state.traces[channel * 2 + driver].setAttribute("d", path);
     });
   });

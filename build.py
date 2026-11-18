@@ -40,6 +40,10 @@ font_css = [
 ]
 portraits = {code: asset(root / 'portraits' / f'{key}.png', 'image/png') for code, key in codes.items()}
 cache = json.loads((root / 'race-cache.json').read_text(encoding='utf-8'))
+for driver in cache['participants'].values():
+    for sample in driver['telemetry']:
+        if sample[3] not in (0, 100):
+            sample[3] = None
 catalog = json.loads((root / 'season-catalog.json').read_text(encoding='utf-8'))
 uncovered = {driver['driver'] for driver in cache['official']['standings']} - portraits.keys()
 assert not uncovered, f'Missing official 2026 portraits: {uncovered}'

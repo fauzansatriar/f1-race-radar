@@ -48,10 +48,11 @@ function gaugeParts(node) {
   return { node, fill: node.querySelector(".gauge-fill"), value: node.querySelector("strong"), previous: null };
 }
 
-function updateGauge(gauge, value, brake = false) {
+function updateGauge(gauge, value, brakeSample) {
+  const brake = brakeSample !== undefined;
   const available = Number.isFinite(value);
   const level = available ? clamp(value, 0, 100) : 0;
-  const display = !available ? "—" : brake ? (value > 0 ? "ON" : "OFF") : Math.round(level) + "%";
+  const display = !available ? "—" : brake ? (brakeSample === 100 ? "ON" : "OFF") : Math.round(level) + "%";
   const arc = level.toFixed(2) + " 100";
   if (gauge.previous !== arc) {
     gauge.fill.setAttribute("stroke-dasharray", arc);

@@ -119,7 +119,10 @@ function timedSamples(rows, project) {
   return [...values.values()].sort((a, b) => a[0] - b[0]);
 }
 
-const telemetryFields = (row) => [row.speed, row.throttle, row.brake, row.n_gear, row.rpm];
+const telemetryFields = (row) => [
+  row.speed, row.throttle, row.brake === 0 || row.brake === 100 ? row.brake : null,
+  row.n_gear, row.rpm,
+];
 const locationFields = (row) => [row.x, row.y];
 
 function lapSample(row, start = Date.parse(row.date_start)) {
