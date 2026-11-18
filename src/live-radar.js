@@ -4,7 +4,7 @@ const LIVE_BUFFER_MS = 2300;
 const LIVE_STALE_MS = 12_000;
 const scheduledRaces = new Map();
 const liveFeed = {
-  recording: null, connected: false, source: null, frame: null, lastFrame: null,
+  recording: null, connected: false, source: null, mode: null, frame: null, lastFrame: null,
   lastRender: -Infinity, lastChart: -Infinity, lastStatus: -Infinity,
 };
 
@@ -15,8 +15,8 @@ function newLiveRace(session) {
   const scheduled = Date.parse(session.date_start);
   return {
     live: true, session: session.session_key, circuit, scheduled, start: scheduled, end: Infinity,
-    started: false, firstLap: Infinity, green: null, finished: null, latest: null, shape: null,
-    nextShapeCheck: 0, participants: {}, embeddedBlocks: [],
+    started: false, firstLap: Infinity, green: null, finished: null, latest: null, receivedAt: 0,
+    shape: null, nextShapeCheck: 0, participants: {}, embeddedBlocks: [], lapClock: [],
     official: { round: "live", year: session.year, name, shortName: name.replace(" Grand Prix", " GP"),
       total: null, circuit, results: [] },
   };
@@ -56,7 +56,7 @@ function mergeLiveRows(recording, rows) {
   for (const event of rows.race_control ?? []) {
     const time = Date.parse(event.date);
     if (!Number.isFinite(time) || time < recording.scheduled - 60_000) continue;
-    if (/^RACE START$/i.test(event.message ?? "")) recording.green = time;
+    if (/^RACE START$/i.test(event.message ?? "")) recording.green ??= time;
     if (event.flag === "CHEQUERED") recording.finished = Math.min(recording.finished ?? Infinity, time);
   }
   const channels = [
@@ -79,6 +79,7 @@ function mergeLiveRows(recording, rows) {
     }
   }
   if (Number.isFinite(latest)) {
+    if (latest > (recording.latest ?? -Infinity)) recording.receivedAt = now;
     recording.latest = latest;
     for (const driver of Object.values(recording.participants)) {
       for (const [field, age] of [["telemetry", 250_000], ["locations", 250_000], ["intervals", 900_000]]) {
@@ -154,9 +155,10 @@ function liveStatus(recording) {
     const scheduled = new Date(recording.scheduled).toISOString().slice(0, 16).replace("T", " ");
     return ["UPCOMING", now < recording.scheduled ? `Scheduled ${scheduled} UTC` : "Waiting for race start", ""];
   }
-  if (!navigator.onLine || !liveFeed.connected) return ["RECONNECTING", "Waiting for OpenF1 updates", ""];
+  const provider = recording.source === "public" ? "F1 public timing" : "OpenF1";
+  if (!navigator.onLine || !liveFeed.connected) return ["RECONNECTING", `Waiting for ${provider}`, ""];
   const delay = Math.max(0, Math.round((now - state.time) / 1000));
-  return [now - recording.latest > LIVE_STALE_MS ? "DELAYED" : "LIVE", "OpenF1", `${delay}s behind`];
+  return [now - recording.receivedAt > LIVE_STALE_MS ? "DELAYED" : "LIVE", provider, `${delay}s behind`];
 }
 
 function refreshLiveStatus() {
@@ -166,10 +168,9 @@ function refreshLiveStatus() {
   text("live-label", label);
   text("source-status", message);
   text("live-delay", delay);
+  mediaLabel(race.started && race.source === "public" ? "Timing only · sensor and GPS data unavailable" : "");
   text("race-waiting-note", race.finished !== null ? "The race has ended. Select its replay when the archive is available."
-    : liveFeed.source
-    ? "Radar opens when OpenF1 starts sending race timing."
-    : "A connected OpenF1 live relay is required to watch this race in real time.");
+    : "Radar opens when the live timing feed starts sending race data.");
 }
 
 function refreshLiveClassification() {
@@ -239,7 +240,7 @@ function viewLive(recording) {
   startLiveClock();
 }
 
-function acceptLiveUpdate({ session, connected, rows }) {
+function acceptLiveUpdate({ session, connected, rows, source = "openf1", lap = null }) {
   const previous = liveFeed.recording;
   const previousPhase = livePhase(previous);
   liveFeed.connected = connected === true;
@@ -252,15 +253,23 @@ function acceptLiveUpdate({ session, connected, rows }) {
     : race.live && race.session === session.session_key ? race
       : scheduledRaces.get(session.session_key) ?? newLiveRace(session);
   liveFeed.recording = recording;
+  recording.source = source;
   const hadShape = Boolean(recording.shape);
   mergeLiveRows(recording, rows ?? {});
+  if (lap) {
+    recording.official.total = lap.total ?? recording.official.total;
+    if (recording.lapClock.at(-1)?.[1] !== lap.count) {
+      addLiveSample(recording.lapClock, [Date.parse(lap.date), lap.count]);
+    }
+  }
   const phase = livePhase(recording);
   if (recording !== previous || phase !== previousPhase) renderCatalog();
-  if (phase === "live" && liveFeed.connected && Date.now() - recording.latest <= LIVE_STALE_MS &&
+  if (phase === "live" && liveFeed.connected && Date.now() - recording.receivedAt <= LIVE_STALE_MS &&
       !state.changedRace && !state.raceRequest && state.timer === null) {
     viewLive(recording);
   }
   if (race === recording) {
+    document.body.dataset.liveSource = source;
     state.laps = raceLapTimes(recording);
     // Driver info can arrive after the first timing burst.
     if (rows?.drivers?.length) state.pairKey = "";
@@ -273,11 +282,23 @@ function acceptLiveUpdate({ session, connected, rows }) {
 }
 
 async function connectLive() {
-  if (location.protocol === "file:" || typeof EventSource !== "function") return;
+  if (location.protocol === "file:" || !navigator.onLine) return;
+  const publicFallback = () => {
+    liveFeed.mode = "public";
+    if (typeof WebSocket === "function") connectPublicTiming();
+  };
+  if (liveFeed.mode === "public" || typeof EventSource !== "function") {
+    publicFallback();
+    return;
+  }
   try {
     const response = await fetch("./api/live/status", { cache: "no-store", signal: AbortSignal.timeout(5000) });
-    if (!response.ok || !response.headers.get("Content-Type")?.includes("application/json")) return;
-    if (!(await response.json()).configured || liveFeed.source) return;
+    if (!response.ok || !response.headers.get("Content-Type")?.includes("application/json") ||
+        !(await response.json()).configured) {
+      if (!liveFeed.source) publicFallback();
+      return;
+    }
+    if (liveFeed.source) return;
     const source = new EventSource("./api/live");
     liveFeed.source = source;
     refreshLiveStatus();
@@ -297,6 +318,6 @@ async function connectLive() {
       }
     };
   } catch {
-    // Archive replay and its bundled snapshot remain available without a relay.
+    if (!liveFeed.source) publicFallback();
   }
 }

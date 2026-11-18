@@ -214,6 +214,7 @@ function syncClock() {
   const lap = at(state.laps, time)?.[1] ?? 1;
   if (race.live) {
     text("lap", race.started ? lap : "—");
+    text("lap-total", race.official.total ? "/" + race.official.total : "");
     $("replay-clock").dateTime = new Date(time).toISOString();
     text("replay-clock", race.started ? elapsed(time) + " UTC" : "");
     return;
@@ -483,6 +484,7 @@ function renderClassification() {
 }
 
 function raceLapTimes(recording) {
+  if (recording.lapClock?.length) return recording.lapClock;
   const times = new Map([[1, recording.start]]);
   for (const driver of Object.values(recording.participants)) {
     for (const [start, number] of driver.laps) {
@@ -522,6 +524,7 @@ function renderRace() {
   state.historyKey = "";
   state.laps = raceLapTimes(race);
   document.body.dataset.timing = race.live ? "live" : "replay";
+  document.body.dataset.liveSource = race.live ? race.source ?? "" : "";
   $("live-indicator").hidden = !race.live;
   $("gp-select").value = race.live ? liveChoice(race) : race.official.round;
   document.title = "F1 Race Radar — " + race.official.shortName + " " + (race.official.year ?? SEASON);

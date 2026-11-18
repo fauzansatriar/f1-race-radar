@@ -49,7 +49,9 @@ def inline_json(value):
     return json.dumps(value, ensure_ascii=True, separators=(',', ':')).replace('<', '\\u003c')
 
 css = read('radar.css').replace('/*__FONT_FACES__*/', '\n'.join(font_css))
-app = ('\n'.join(read(file) for file in ('radar-graphics.js', 'race-pickers.js', 'live-radar.js', 'radar.js'))).replace('/*__PORTRAITS__*/ {}', inline_json(portraits))
+app = ('\n'.join(read(file) for file in (
+    'radar-graphics.js', 'race-pickers.js', 'public-timing.js', 'live-radar.js', 'radar.js',
+))).replace('/*__PORTRAITS__*/ {}', inline_json(portraits))
 app = app.replace('/*__RACE_CACHE__*/ {}', inline_json(cache))
 app = app.replace('/*__CATALOG__*/ []', inline_json(catalog))
 template = read('index.html').replace('/*__STYLES__*/', css).replace('/*__LOGO__*/', logo)

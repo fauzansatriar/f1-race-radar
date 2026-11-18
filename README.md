@@ -2,23 +2,22 @@
 
 ![Isometric cover featuring the F1 Race Radar desktop dashboard and mobile 1v1 radar](docs/media/race-radar-cover.webp)
 
-**A mobile-first Formula 1 race radar for live timing and 2026 replays.** Follow two drivers from lights out to the finish with the gap, car positions, and telemetry synced to one clock.
+**A mobile-first Formula 1 race radar for live timing and 2026 replays.** Follow the gap between two drivers from lights out to the finish and explore car telemetry in archived races.
 
-[Latest update](#latest-update) · [MVP features](#mvp-features) · [Screenshots](#screenshots) · [Live setup](#live-setup) · [Project structure](#project-structure) · [Credits](#credits-and-disclaimer)
+[Open F1 Race Radar](https://fauzansatriar.github.io/f1-race-radar/#radar) · [Latest update](#latest-update) · [Screenshots](#screenshots) · [Live data](#live-data) · [Project structure](#project-structure) · [Credits](#credits-and-disclaimer)
 
 ## Latest update
 
-**18 November 2026 · Live race viewing**
+**18 November 2026 · Free HTTPS hosting and public live timing**
 
-- The default view follows the active GP when OpenF1 timing becomes available. A common clock keeps the 1v1 radar, telemetry, and GPS in sync, and the app displays the delay behind the race.
-- The GP picker includes upcoming races, their scheduled start times, and the completed 2026 replay archive. The catalog refreshes automatically while the app is open.
-- Live viewing shows reconnecting, delayed, and chequered-flag states. Archived races still support lap selection and 1×–8× playback.
-- The Render Blueprint deploys the installable PWA and OpenF1 relay together over HTTPS. Its status endpoint reports whether the relay has reached OpenF1.
+- The PWA is deployed over HTTPS on GitHub Pages and opens directly to 1v1 Radar when installed.
+- The app connects directly to the public F1 timing feed without an account or API key. During an active race, it shows the running order, gaps, lap count, and timing delay. It reconnects automatically after a dropped connection.
+- The GP picker lists upcoming races and completed 2026 replays. Replay still includes archived car telemetry, GPS, lap selection, and 1×–8× playback.
 
 ## MVP features
 
 - **1v1 Radar** — Pick a battle between adjacent drivers and follow the time gap and estimated distance with driver portraits and team liveries.
-- **Live viewing** — See upcoming GPs in the selector. With a connected OpenF1 relay, the default view follows an active race automatically and shows the timing delay. Selecting a different GP keeps that choice.
+- **Live viewing** — See upcoming GPs in the selector. The default view follows an active race when fresh timing arrives. Selecting a different GP keeps that choice.
 - **Race replay** — Browse completed 2026 Grands Prix, starting with the latest available race. Jump to any lap or the finish, scrub the timeline, and switch between **1×, 2×, 4×, and 8×**.
 - **Synced telemetry** — Compare speed, throttle, braking, and gear. The radar interpolates car movement and readouts between recorded samples as playback speed changes.
 - **Race analysis** — See GPS positions on the circuit, race classification, lap pace, gap history, and sector deltas.
@@ -53,11 +52,16 @@ Open [1v1 Radar](http://127.0.0.1:8000/#radar). Run `python build.py --standalon
 
 ### Install on a phone
 
-Serve the checked-in `dist/` directory on an HTTPS static host. Open it in Chrome on Android or Safari on iOS and choose **Install app** or **Add to Home Screen** from the browser menu. The app opens directly to 1v1 Radar.
+Open the [HTTPS app](https://fauzansatriar.github.io/f1-race-radar/) in Chrome on Android or Safari on iOS and choose **Install app** or **Add to Home Screen** from the browser menu. The app opens directly to 1v1 Radar.
 
-## Live setup
+## Live data
 
-Live timing requires an [OpenF1 live-data subscription](https://openf1.org/auth.html) and a running Python server. Set `OPENF1_USERNAME` and `OPENF1_PASSWORD` in the server environment or in the host's secret settings.
+The browser subscribes directly to the public Formula 1 timing feed during races. The public feed provides race order, gaps, and lap counts. Car sensors and GPS require a subscribed feed. The public app displays its timing-only status during live viewing. [Public timing reference](https://github.com/darshjoshi/pitwall#live-timing-lite--no-auth-reads-f1s-real-time-signalr-feed-during-a-session)
+
+<details>
+<summary>Optional self-hosted OpenF1 relay</summary>
+
+For a subscribed sensor and GPS feed, set `OPENF1_USERNAME` and `OPENF1_PASSWORD` in the server environment. [OpenF1 live-data documentation](https://openf1.org/auth.html)
 
 ```sh
 python -m pip install -r requirements-live.txt
@@ -65,15 +69,9 @@ python build.py
 python server.py
 ```
 
-The server serves the PWA and relays OpenF1 MQTT updates over a same-origin event stream. It renews its access token server-side and uses a short playback buffer to synchronize the radar, GPS and telemetry. Timing updates reflect the provider's delay.
+The server renews the OpenF1 token and relays timing, car telemetry, and GPS over a same-origin event stream. `/api/live/status` reports `openf1: "ready"` after authentication and a successful schedule request. To expose the relay, serve it behind HTTPS and forward `/api/live` without response buffering.
 
-For phone access, run `python server.py --host 0.0.0.0` on a host that runs long-lived processes. Serve the app over HTTPS and forward `/api/live` without response buffering. The static `dist/` build can still be hosted on its own for the schedule and archived race replay.
-
-### Deploy on Render
-
-Create a Blueprint from this repository using `render.yaml`. When Render prompts for `OPENF1_USERNAME` and `OPENF1_PASSWORD`, enter the values in the Render dashboard. Open the resulting HTTPS URL on your phone to install the PWA.
-
-On the deployed URL, `/api/live/status` reports `openf1: "ready"` once the relay can authenticate and read the race schedule. The live stream starts around the next race. Render Free sleeps when idle, so the first visit after a break can take longer.
+</details>
 
 ## Project structure
 
@@ -84,13 +82,14 @@ On the deployed URL, `/api/live/status` reports `openf1: "ready"` once the relay
 | [`docs/media/`](docs/media/) | Isometric cover and full-resolution screenshots |
 | [`build.py`](build.py) | Python script that builds the static app |
 | [`server.py`](server.py) | Optional live-data relay and PWA server |
-| [`render.yaml`](render.yaml) | HTTPS web service and server-side secret configuration |
+| [`gh-pages`](https://github.com/fauzansatriar/f1-race-radar/tree/gh-pages) | Published GitHub Pages build |
 
 ## Data sources
 
 | Source | Data |
 | --- | --- |
-| [OpenF1](https://openf1.org/docs/) | Session schedule, race timing, GPS, and car telemetry |
+| [Formula 1 live timing](https://www.formula1.com/en/timing/f1-live) | Public race order, gaps, and lap count during a race |
+| [OpenF1](https://openf1.org/docs/) | Session schedule and archived timing, GPS, and car telemetry |
 | [Jolpica F1](https://api.jolpi.ca/docs/) | Race results and driver standings |
 
 The bundled Brazilian GP snapshot includes race timing and selected telemetry windows. Additional races and telemetry load on demand, subject to upstream availability.
