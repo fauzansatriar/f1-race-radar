@@ -122,6 +122,25 @@ function timedSamples(rows, project) {
 const telemetryFields = (row) => [row.speed, row.throttle, row.brake, row.n_gear, row.rpm];
 const locationFields = (row) => [row.x, row.y];
 
+function lapSample(row, start = Date.parse(row.date_start)) {
+  return [
+    start, row.lap_number, row.lap_duration,
+    [row.duration_sector_1, row.duration_sector_2, row.duration_sector_3],
+    [row.segments_sector_1, row.segments_sector_2, row.segments_sector_3].flatMap((sector) => sector ?? []),
+    Boolean(row.is_pit_out_lap),
+  ];
+}
+
+function driverIdentity(driver, result = {}) {
+  return {
+    code: result.driver || driver.name_acronym || String(driver.driver_number),
+    name: result.name || driver.full_name || String(driver.driver_number),
+    team: driver.team_name || result.team || "",
+    color: /^[0-9a-f]{6}$/i.test(driver.team_colour) ? `#${driver.team_colour}` : "#e0e0e8",
+    headshot: /^https:\/\/media\.formula1\.com\//.test(driver.headshot_url) ? driver.headshot_url : "",
+  };
+}
+
 function circuitShape(points, start, length) {
   const lap = points.filter(([time]) => time >= start && time < start + length * 1000);
   if (lap.length < 40) return null;
@@ -167,17 +186,8 @@ function packRace(session, official, input, window) {
     participants[n] = {
       number: n,
       activeThrough,
-      code: result.driver,
-      name: result.name,
-      team: driver.team_name || result.team,
-      color: /^[0-9a-f]{6}$/i.test(driver.team_colour) ? `#${driver.team_colour}` : "#e0e0e8",
-      headshot: /^https:\/\/media\.formula1\.com\//.test(driver.headshot_url) ? driver.headshot_url : "",
-      laps: sorted((lapRows[n] ?? []).filter((row) => row.date_start).map((row) => [
-        Date.parse(row.date_start), row.lap_number, row.lap_duration,
-        [row.duration_sector_1, row.duration_sector_2, row.duration_sector_3],
-        [row.segments_sector_1, row.segments_sector_2, row.segments_sector_3].flatMap((sector) => sector ?? []),
-        Boolean(row.is_pit_out_lap),
-      ])),
+      ...driverIdentity(driver, result),
+      laps: sorted((lapRows[n] ?? []).filter((row) => row.date_start).map((row) => lapSample(row))),
       positions: sorted((positions[n] ?? []).filter(hasDate).map((row) => [Date.parse(row.date), row.position])),
       intervals: sorted((intervals[n] ?? []).filter(recent).map((row) => [Date.parse(row.date), row.interval, row.gap_to_leader])),
       telemetry: timedSamples(telemetry[n], telemetryFields),

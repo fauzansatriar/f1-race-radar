@@ -2,13 +2,22 @@
 
 ![Isometric cover featuring the F1 Race Radar desktop dashboard and mobile 1v1 radar](docs/media/race-radar-cover.webp)
 
-**A mobile-first replay app for the 2026 Formula 1 season.** Follow two drivers from lights out to the finish with the gap, car positions, and telemetry synced to the same replay clock.
+**A mobile-first Formula 1 race radar for live timing and 2026 replays.** Follow two drivers from lights out to the finish with the gap, car positions, and telemetry synced to one clock.
 
-[MVP features](#mvp-features) · [Screenshots](#screenshots) · [Run locally](#run-locally) · [Project structure](#project-structure) · [Credits](#credits-and-disclaimer)
+[Latest update](#latest-update) · [MVP features](#mvp-features) · [Screenshots](#screenshots) · [Live setup](#live-setup) · [Project structure](#project-structure) · [Credits](#credits-and-disclaimer)
+
+## Latest update
+
+**18 November 2026 · Live race viewing**
+
+- The default view follows the active GP when OpenF1 timing becomes available. A common clock keeps the 1v1 radar, telemetry, and GPS in sync, and the app displays the delay behind the race.
+- The GP picker includes upcoming races, their scheduled start times, and the completed 2026 replay archive. The catalog refreshes automatically while the app is open.
+- Live viewing shows reconnecting, delayed, and chequered-flag states. Archived races still support lap selection and 1×–8× playback.
 
 ## MVP features
 
 - **1v1 Radar** — Pick a battle between adjacent drivers and follow the time gap and estimated distance with driver portraits and team liveries.
+- **Live viewing** — See upcoming GPs in the selector. With a connected OpenF1 relay, the default view follows an active race automatically and shows the timing delay. Selecting a different GP keeps that choice.
 - **Race replay** — Browse completed 2026 Grands Prix, starting with the latest available race. Jump to any lap or the finish, scrub the timeline, and switch between **1×, 2×, 4×, and 8×**.
 - **Synced telemetry** — Compare speed, throttle, braking, and gear. The radar interpolates car movement and readouts between recorded samples as playback speed changes.
 - **Race analysis** — See GPS positions on the circuit, race classification, lap pace, gap history, and sector deltas.
@@ -45,6 +54,20 @@ Open [1v1 Radar](http://127.0.0.1:8000/#radar). Run `python build.py --standalon
 
 Serve the checked-in `dist/` directory on an HTTPS static host. Open it in Chrome on Android or Safari on iOS and choose **Install app** or **Add to Home Screen** from the browser menu. The app opens directly to 1v1 Radar.
 
+## Live setup
+
+Live timing requires an [OpenF1 live-data subscription](https://openf1.org/auth.html) and a running Python server. Set `OPENF1_USERNAME` and `OPENF1_PASSWORD` in the server environment or in the host's secret settings.
+
+```sh
+python -m pip install -r requirements-live.txt
+python build.py
+python server.py
+```
+
+The server serves the PWA and relays OpenF1 MQTT updates over a same-origin event stream. It renews its access token server-side and uses a short playback buffer to synchronize the radar, GPS and telemetry. Timing updates reflect the provider's delay.
+
+For phone access, run `python server.py --host 0.0.0.0` on a host that runs long-lived processes. Serve the app over HTTPS and forward `/api/live` without response buffering. The static `dist/` build can still be hosted on its own for the schedule and archived race replay.
+
 ## Project structure
 
 | Path | Contents |
@@ -53,12 +76,13 @@ Serve the checked-in `dist/` directory on an HTTPS static host. Open it in Chrom
 | [`dist/`](dist/) | Ready-to-serve PWA with its manifest and service worker |
 | [`docs/media/`](docs/media/) | Isometric cover and full-resolution screenshots |
 | [`build.py`](build.py) | Python script that builds the static app |
+| [`server.py`](server.py) | Optional live-data relay and PWA server |
 
 ## Data sources
 
 | Source | Data |
 | --- | --- |
-| [OpenF1](https://openf1.org/docs/) | Archived timing, GPS, and car telemetry |
+| [OpenF1](https://openf1.org/docs/) | Session schedule, race timing, GPS, and car telemetry |
 | [Jolpica F1](https://api.jolpi.ca/docs/) | Race results and driver standings |
 
 The bundled Brazilian GP snapshot includes race timing and selected telemetry windows. Additional races and telemetry load on demand, subject to upstream availability.

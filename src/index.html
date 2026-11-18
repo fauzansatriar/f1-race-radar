@@ -23,6 +23,7 @@
     </nav>
     <div class="session" id="replay-session">
       <span class="lap"><b>LAP <span id="lap">—</span></b><span id="lap-total"></span></span>
+      <span class="live-indicator" id="live-indicator" hidden><span id="live-label"></span></span>
       <button class="replay" id="replay" type="button" aria-label="Play archived telemetry" aria-pressed="false">
         <svg viewBox="0 0 12 12" aria-hidden="true"><path id="play-icon" fill="currentColor" d="M3 1.5v9L10 6Z"/></svg>
         <span id="replay-text">REPLAY</span>
@@ -37,8 +38,8 @@
       </div>
     </div>
     <label class="gp-picker">
-      <span class="sr-only">Select a completed 2026 Grand Prix</span>
-      <select id="gp-select" aria-label="Select a completed 2026 Grand Prix"></select>
+      <span class="sr-only">Select a Grand Prix</span>
+      <select id="gp-select" aria-label="Select a Grand Prix"></select>
     </label>
     <details class="mobile-more" id="mobile-more">
       <summary aria-label="More race views" title="More race views">
@@ -175,7 +176,11 @@
       </div>
     </div>
   </main>
-  <footer class="replay-controls" aria-label="Replay controls">
+  <section class="race-waiting panel" id="race-waiting" aria-labelledby="race-waiting-title" hidden>
+    <h1 id="race-waiting-title"></h1>
+    <p id="race-waiting-note"></p>
+  </section>
+  <footer class="replay-controls" aria-label="Race timing controls">
     <div class="mobile-replay" id="mobile-replay"></div>
     <div class="lap-picker"><span>Jump to</span>
       <button class="picker-trigger" id="lap-select" type="button" aria-label="Jump to a lap"
@@ -185,7 +190,7 @@
     </div>
     <label class="scrubber"><span class="sr-only">Race replay timeline</span><input id="scrubber" type="range" aria-label="Seek archived race replay" min="0" max="1" value="0"></label>
     <time id="replay-clock"></time>
-    <div class="replay-status"><span class="source-status" id="source-status" role="status">OpenF1 · Jolpica</span><span class="source-status" id="telemetry-status" role="status"></span></div>
+    <div class="replay-status"><span class="source-status" id="source-status" role="status">OpenF1 · Jolpica</span><span class="source-status" id="telemetry-status" role="status"></span><span class="source-status" id="live-delay"></span></div>
     <button class="sync-button" id="sync-race" type="button">Refresh data</button>
   </footer>
   <dialog class="race-picker" id="race-picker" aria-labelledby="picker-title">

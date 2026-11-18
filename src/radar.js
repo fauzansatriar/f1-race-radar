@@ -56,6 +56,7 @@ function blockIndex(recording, time) {
 }
 
 function mediaSamples(driver, channel) {
+  if (race.live) return driver[channel];
   const index = blockIndex(race, state.time);
   const blocks = mediaState(race);
   const active = blocks.get(index)?.[channel]?.[driver.number];
@@ -211,6 +212,12 @@ function updateMap(a, b, time) {
 function syncClock() {
   const time = state.time;
   const lap = at(state.laps, time)?.[1] ?? 1;
+  if (race.live) {
+    text("lap", race.started ? lap : "—");
+    $("replay-clock").dateTime = new Date(time).toISOString();
+    text("replay-clock", race.started ? elapsed(time) + " UTC" : "");
+    return;
+  }
   const finished = time >= race.end;
   $("scrubber").value = finished ? $("scrubber").max : Math.floor((time - race.start) / 1000);
   $("scrubber").setAttribute("aria-valuetext", (finished ? "Finish" : "Lap " + lap) + " · " + elapsed(time) + " UTC");
@@ -227,10 +234,14 @@ function syncClock() {
 }
 
 function render() {
+  const waiting = race.live && !race.started;
+  document.querySelector(".dashboard").hidden = waiting;
+  $("race-waiting").hidden = !waiting;
+  syncClock();
+  if (waiting) return;
   const time = state.time;
   const battles = battlesAt(fieldAt(time));
   const lap = at(state.laps, time)?.[1] ?? 1;
-  syncClock();
   const battle = battles.find(({ b }) => b.number === state.selected) ?? battles.find(({ position }) => position === 4) ?? battles[0];
   const hadBattle = state.battle;
   state.battle = battle ?? null;
@@ -450,12 +461,13 @@ function sectorDeltas(last) {
 function renderClassification() {
   const mode = state.classification;
   const standings = mode === "standings";
-  text("classification-title", standings ? "2026 driver standings" : race.official.name + " results");
+  text("classification-title", standings ? "2026 driver standings"
+    : race.official.name + (race.live ? " race order" : " results"));
   for (const button of document.querySelectorAll("[data-classification]")) {
     button.setAttribute("aria-pressed", String(button.dataset.classification === mode));
   }
   $("class-head").innerHTML = `<tr><th scope="col">Pos</th><th scope="col">Driver</th><th scope="col" class="class-team-col">Team</th>
-    <th scope="col">${standings ? "Wins" : "Time / status"}</th><th scope="col">Pts</th></tr>`;
+    <th scope="col">${standings ? "Wins" : race.live ? "Gap to leader" : "Time / status"}</th><th scope="col">Pts</th></tr>`;
   const entries = standings ? seasonStandings : race.official.results;
   $("class-body").innerHTML = entries.map((driver) => {
     const photo = portraits[driver.driver];
@@ -474,7 +486,7 @@ function raceLapTimes(recording) {
   const times = new Map([[1, recording.start]]);
   for (const driver of Object.values(recording.participants)) {
     for (const [start, number] of driver.laps) {
-      if (number > 1 && number <= recording.official.total && start > recording.start && start < recording.end) {
+      if (number > 1 && number <= (recording.official.total ?? Infinity) && start > recording.start && start < recording.end) {
         times.set(number, Math.min(start, times.get(number) ?? Infinity));
       }
     }
@@ -501,22 +513,31 @@ function renderShape() {
 
 function renderRace() {
   $("race-picker").close();
+  state.battle = null;
   setPlayback(false);
-  state.time = race.start;
+  state.time = race.live ? liveEdge(race) : race.start;
   state.selected = null;
   state.listKey = "";
   state.pairKey = "";
-  state.battle = null;
   state.historyKey = "";
   state.laps = raceLapTimes(race);
-  $("gp-select").value = race.official.round;
-  document.title = "F1 Race Radar — " + race.official.shortName + " 2026";
-  text("lap-total", "/" + race.official.total);
+  document.body.dataset.timing = race.live ? "live" : "replay";
+  $("live-indicator").hidden = !race.live;
+  $("gp-select").value = race.live ? liveChoice(race) : race.official.round;
+  document.title = "F1 Race Radar — " + race.official.shortName + " " + (race.official.year ?? SEASON);
+  text("lap-total", race.live ? "" : "/" + race.official.total);
+  text("race-waiting-title", race.official.name);
   text("circuit-title", (race.circuit || race.official.circuit) + " · GPS");
-  $("scrubber").max = Math.ceil((race.end - race.start) / 1000);
+  if (!race.live) $("scrubber").max = Math.ceil((race.end - race.start) / 1000);
+  if (!race.live) text("live-delay", "");
   renderShape();
   renderClassification();
   render();
+  if (race.live) {
+    mediaLabel("");
+    refreshLiveClassification();
+    return;
+  }
   queueMedia();
   loadShape();
 }
@@ -550,6 +571,7 @@ function animateReplay(now) {
 }
 
 function setPlayback(playing) {
+  if (playing && race.live) return;
   if (state.timer !== null) cancelAnimationFrame(state.timer);
   state.timer = null;
   state.lastFrame = null;
@@ -646,14 +668,32 @@ function selectBattle(number) {
 }
 
 function renderCatalog() {
-  const selected = $("gp-select").value;
-  $("gp-select").replaceChildren(...catalog.map((entry) =>
+  const picker = $("gp-select");
+  const selected = picker.value;
+  const options = catalog.map((entry) =>
     new Option(`R${entry.round} · ${entry.name.replace(" Grand Prix", " GP")}`, entry.round),
-  ));
-  $("gp-select").value = catalog.some((entry) => entry.round === selected) ? selected : race.official.round;
+  );
+  const upcoming = new Map(scheduledRaces);
+  if (liveFeed.recording) upcoming.set(liveFeed.recording.session, liveFeed.recording);
+  if (race.live && !upcoming.has(race.session)) upcoming.set(race.session, race);
+  const sessions = [...upcoming.values()].sort((a, b) =>
+    Number(b === liveFeed.recording) - Number(a === liveFeed.recording) || a.scheduled - b.scheduled);
+  options.unshift(...sessions.map((available) => {
+    const label = { upcoming: "Upcoming", live: "Live", finished: "Finished" }[livePhase(available)];
+    return new Option(`${label} · ${available.official.shortName}`, liveChoice(available));
+  }));
+  const current = race.live ? liveChoice(race) : race.official.round;
+  picker.replaceChildren(...options);
+  picker.value = state.raceRequest && options.some((option) => option.value === selected) ? selected : current;
 }
 
 async function selectGP(round) {
+  if (round.startsWith("session:")) {
+    const key = Number(round.slice(8));
+    if (liveFeed.recording?.session === key) viewLive(liveFeed.recording);
+    else viewLive(scheduledRaces.get(key));
+    return;
+  }
   const entry = catalog.find((item) => item.round === round);
   if (!entry) return;
   state.raceRequest?.abort();
@@ -680,12 +720,14 @@ async function selectGP(round) {
     }
     controller.signal.throwIfAborted();
     state.shapeRequest?.abort();
+    stopLiveClock();
     race = recording;
+    renderCatalog();
     renderRace();
     text("source-status", "OpenF1 · Jolpica");
   } catch {
     if (!controller.signal.aborted) {
-      $("gp-select").value = race.official.round;
+      $("gp-select").value = race.live ? liveChoice(race) : race.official.round;
       text("source-status", `Couldn't load round ${round}. Select it to retry.`);
     }
   } finally {
@@ -698,23 +740,31 @@ async function selectGP(round) {
 
 async function syncRace() {
   const button = $("sync-race");
+  if (button.disabled || !navigator.onLine) return;
   button.disabled = true;
-  if (!state.raceRequest) text("source-status", "Checking OpenF1 and Jolpica…");
-  const activeIndex = blockIndex(race, state.time);
-  const data = mediaState(race).get(activeIndex);
-  if (data && (!data.telemetry || !data.locations)) {
-    mediaState(race).delete(activeIndex);
-    queueMedia();
+  if (!race.live) {
+    if (!state.raceRequest) text("source-status", "Checking OpenF1 and Jolpica…");
+    const activeIndex = blockIndex(race, state.time);
+    const data = mediaState(race).get(activeIndex);
+    if (data && (!data.telemetry || !data.locations)) {
+      mediaState(race).delete(activeIndex);
+      queueMedia();
+    }
   }
   try {
     const selected = race;
-    const [results, standings, sessions, classification] = await Promise.allSettled([
+    const [results, standings, sessions, classification, meetings] = await Promise.allSettled([
       requestJSON(JOLPICA + "results/1/?limit=100"),
       requestJSON(JOLPICA + "driverstandings/?limit=100"),
       fetchOpen("sessions", `year=${SEASON}&session_name=Race`),
-      requestJSON(JOLPICA + selected.official.round + "/results/?limit=100"),
+      selected.live ? null : requestJSON(JOLPICA + selected.official.round + "/results/?limit=100"),
+      fetchOpen("meetings", `year=${SEASON}`),
     ]);
-    if (classification.status === "fulfilled") {
+    if (sessions.status === "fulfilled") {
+      refreshSchedule(sessions.value, meetings.status === "fulfilled" ? meetings.value : []);
+      renderCatalog();
+    }
+    if (classification.status === "fulfilled" && classification.value) {
       selected.official.results = readOfficial(classification.value).results;
       if (race === selected) renderClassification();
     }
@@ -723,8 +773,8 @@ async function syncRace() {
       if (updatedStandings.length) seasonStandings = updatedStandings;
       renderClassification();
     }
-    if (results.status === "fulfilled" && sessions.status === "fulfilled") {
-      const updated = readCatalog(results.value, sessions.value);
+    if (results.status === "fulfilled") {
+      const updated = readCatalog(results.value, sessions.status === "fulfilled" ? sessions.value : []);
       // Keep known completed rounds in case an upstream result disappears temporarily.
       const grouped = new Map(catalog.map((entry) => [entry.round, entry]));
       for (const entry of updated) {
@@ -733,14 +783,15 @@ async function syncRace() {
       }
       catalog = [...grouped.values()].sort((a, b) => Number(b.round) - Number(a.round));
       renderCatalog();
-      if (!state.changedRace && !state.raceRequest && catalog[0].round !== race.official.round) {
+      if (!race.live && !state.changedRace && !state.raceRequest && state.timer === null &&
+          catalog[0].round !== race.official.round && catalog[0].session) {
         await selectGP(catalog[0].round);
-      } else if (!state.raceRequest) text("source-status", "OpenF1 · Jolpica synced");
-    } else if (!state.raceRequest) {
+      } else if (!race.live && !state.raceRequest) text("source-status", "OpenF1 · Jolpica synced");
+    } else if (!race.live && !state.raceRequest) {
       text("source-status", "Saved race list · API refresh unavailable");
     }
   } catch {
-    if (!state.raceRequest) text("source-status", "Saved race list · API refresh unavailable");
+    if (!race.live && !state.raceRequest) text("source-status", "Saved race list · API refresh unavailable");
   } finally {
     button.disabled = false;
   }
@@ -779,7 +830,8 @@ $("classification").addEventListener("click", (event) => {
   const button = event.target.closest("[data-classification]");
   if (!button) return;
   state.classification = button.dataset.classification;
-  renderClassification();
+  if (race.live && state.classification !== "standings") refreshLiveClassification();
+  else renderClassification();
 });
 $("sync-race").addEventListener("click", syncRace);
 function layoutReplayControls() {
@@ -816,12 +868,29 @@ window.addEventListener("hashchange", () => {
   $("race-picker").close();
   updateView();
   renderMotion(true);
+  if (document.body.dataset.view === "data") refreshLiveClassification();
   if (mobileLayout.matches) window.scrollTo(0, 0);
 });
 mobileLayout.addEventListener("change", () => { layoutReplayControls(); render(); });
 layoutReplayControls();
 initializeRacePickers();
-document.addEventListener("visibilitychange", () => { state.lastFrame = null; });
+document.addEventListener("visibilitychange", () => {
+  state.lastFrame = null;
+  if (document.hidden) stopLiveClock();
+  else {
+    startLiveClock();
+    void connectLive();
+  }
+});
+window.addEventListener("online", () => {
+  void connectLive();
+  void syncRace();
+});
+setInterval(() => {
+  if (document.hidden) return;
+  void connectLive();
+  void syncRace();
+}, 240_000);
 $("distance").title = "Estimated from interval × chasing car speed";
 
 $("matrix-grid").classList.add("duel-sectors");
@@ -829,3 +898,4 @@ renderCatalog();
 renderRace();
 updateView();
 void syncRace();
+void connectLive();
