@@ -2,9 +2,9 @@
 
 ![Isometric preview of the F1 Race Radar desktop dashboard and mobile 1v1 radar during the Brazilian GP](docs/media/race-radar-cover.webp)
 
-A mobile-first PWA for replaying head-to-head battles from completed 2026 Formula 1 races. Follow two drivers from lights out to the finish, with the gap, car positions, and telemetry synced to the same replay clock.
+**A mobile-first replay app for the 2026 Formula 1 season.** Follow two drivers from lights out to the finish with the gap, car positions, and telemetry synced to the same replay clock.
 
-[Explore the MVP](#mvp-features) · [See the screenshots](#screenshots) · [Run locally](#run-locally)
+[MVP features](#mvp-features) · [Screenshots](#screenshots) · [Run locally](#run-locally) · [Project structure](#project-structure) · [Credits](#credits-and-disclaimer)
 
 ## MVP features
 
@@ -39,12 +39,33 @@ python build.py
 python -m http.server 8000 --bind 127.0.0.1 --directory dist
 ```
 
-Open [1v1 Radar](http://127.0.0.1:8000/#radar). Serve the checked-in `dist/` directory on an HTTPS static host to make the PWA installable on a phone. Use `python build.py --standalone` to also generate a single-file preview.
+Open [1v1 Radar](http://127.0.0.1:8000/#radar). Run `python build.py --standalone` to also generate a single-file preview.
 
-`src/` contains the app, assets, and bundled data. `build.py` generates `dist/`, including the web app manifest and service worker.
+### Install on a phone
 
-## Data and assets
+Serve the checked-in `dist/` directory on an HTTPS static host. Open it in Chrome on Android or Safari on iOS and choose **Install app** or **Add to Home Screen** from the browser menu. The app opens directly to 1v1 Radar.
 
-[OpenF1](https://openf1.org/docs/) supplies archived timing, GPS, and car telemetry. [Jolpica F1](https://api.jolpi.ca/docs/) supplies results and standings. Other Grands Prix and telemetry outside the bundled windows load on demand, subject to upstream availability.
+## Project structure
 
-Team liveries and driver portraits come from the [Formula 1 teams](https://www.formula1.com/en/teams) and [2026 driver standings](https://www.formula1.com/en/results/2026/drivers) pages. The app uses the supplied F1 fonts and logo.
+| Path | Contents |
+| --- | --- |
+| [`src/`](src/) | Radar UI, replay logic, bundled race data, and app assets |
+| [`dist/`](dist/) | Ready-to-serve PWA with its manifest and service worker |
+| [`docs/media/`](docs/media/) | Isometric cover and full-resolution screenshots |
+| [`build.py`](build.py) | Python script that builds the static app |
+
+## Data sources
+
+| Source | Data |
+| --- | --- |
+| [OpenF1](https://openf1.org/docs/) | Archived timing, GPS, and car telemetry |
+| [Jolpica F1](https://api.jolpi.ca/docs/) | Race results and driver standings |
+
+The bundled Brazilian GP snapshot includes race timing and selected telemetry windows. Additional races and telemetry load on demand, subject to upstream availability.
+
+## Credits and disclaimer
+
+> [!NOTE]
+> F1 Race Radar is an unofficial personal project, independent of Formula 1. All Formula 1 assets used in the app and this README, including the logo, fonts, driver portraits, and team liveries, belong to Formula 1 and their respective rights holders.
+
+Team liveries and driver portraits come from the [Formula 1 teams](https://www.formula1.com/en/teams) and [2026 driver standings](https://www.formula1.com/en/results/2026/drivers) pages.
