@@ -1,6 +1,6 @@
 # F1 Race Radar
 
-![Isometric preview of the F1 Race Radar desktop dashboard and mobile 1v1 radar during the Brazilian GP](docs/media/race-radar-cover.webp)
+![Isometric cover featuring the F1 Race Radar desktop dashboard and mobile 1v1 radar](docs/media/race-radar-cover.webp)
 
 **A mobile-first replay app for the 2026 Formula 1 season.** Follow two drivers from lights out to the finish with the gap, car positions, and telemetry synced to the same replay clock.
 
