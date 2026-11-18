@@ -8,8 +8,9 @@
 
 ## Latest update
 
-**18 November 2026 · Free HTTPS hosting and public live timing**
+**18 November 2026 · Public live timing and radar cleanup**
 
+- The radar uses a plain Lap Pace label, and the footer shows timing and connection messages without a provider credit or sync confirmation.
 - The PWA is deployed over HTTPS on GitHub Pages and opens directly to 1v1 Radar when installed.
 - The app connects directly to the public F1 timing feed without an account or API key. During an active race, it shows the running order, gaps, lap count, and timing delay. It reconnects automatically after a dropped connection.
 - The GP picker lists upcoming races and completed 2026 replays. Replay still includes archived car telemetry, GPS, lap selection, and 1×–8× playback.

@@ -155,10 +155,9 @@ function liveStatus(recording) {
     const scheduled = new Date(recording.scheduled).toISOString().slice(0, 16).replace("T", " ");
     return ["UPCOMING", now < recording.scheduled ? `Scheduled ${scheduled} UTC` : "Waiting for race start", ""];
   }
-  const provider = recording.source === "public" ? "F1 public timing" : "OpenF1";
-  if (!navigator.onLine || !liveFeed.connected) return ["RECONNECTING", `Waiting for ${provider}`, ""];
+  if (!navigator.onLine || !liveFeed.connected) return ["RECONNECTING", "Waiting for timing updates", ""];
   const delay = Math.max(0, Math.round((now - state.time) / 1000));
-  return [now - recording.receivedAt > LIVE_STALE_MS ? "DELAYED" : "LIVE", provider, `${delay}s behind`];
+  return [now - recording.receivedAt > LIVE_STALE_MS ? "DELAYED" : "LIVE", "", `${delay}s behind`];
 }
 
 function refreshLiveStatus() {

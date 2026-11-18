@@ -451,6 +451,7 @@ body[data-view="data"] .telemetry { display: none; }
 .speed-option:hover { background: #383a44; border-color: #747681; }
 .speed-option[aria-pressed="true"] { background: var(--yellow); border-color: var(--yellow); color: #171405; }
 .replay-status { display: grid; gap: 2px; }
+.replay-status:not(:has(.source-status:not(:empty))) { display: none; }
 .source-status:empty { display: none; }
 .dashboard[aria-busy="true"] { opacity: .65; }
 @media (max-width: 1240px) {

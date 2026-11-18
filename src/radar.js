@@ -703,7 +703,7 @@ async function selectGP(round) {
   if (round === race.official.round) {
     state.raceRequest = null;
     document.querySelector(".dashboard").removeAttribute("aria-busy");
-    text("source-status", "OpenF1 · Jolpica");
+    text("source-status", "");
     return;
   }
   const controller = new AbortController();
@@ -727,7 +727,7 @@ async function selectGP(round) {
     race = recording;
     renderCatalog();
     renderRace();
-    text("source-status", "OpenF1 · Jolpica");
+    text("source-status", "");
   } catch {
     if (!controller.signal.aborted) {
       $("gp-select").value = race.live ? liveChoice(race) : race.official.round;
@@ -746,7 +746,7 @@ async function syncRace() {
   if (button.disabled || !navigator.onLine) return;
   button.disabled = true;
   if (!race.live) {
-    if (!state.raceRequest) text("source-status", "Checking OpenF1 and Jolpica…");
+    if (!state.raceRequest) text("source-status", "Refreshing race data…");
     const activeIndex = blockIndex(race, state.time);
     const data = mediaState(race).get(activeIndex);
     if (data && (!data.telemetry || !data.locations)) {
@@ -789,7 +789,7 @@ async function syncRace() {
       if (!race.live && !state.changedRace && !state.raceRequest && state.timer === null &&
           catalog[0].round !== race.official.round && catalog[0].session) {
         await selectGP(catalog[0].round);
-      } else if (!race.live && !state.raceRequest) text("source-status", "OpenF1 · Jolpica synced");
+      } else if (!race.live && !state.raceRequest) text("source-status", "");
     } else if (!race.live && !state.raceRequest) {
       text("source-status", "Saved race list · API refresh unavailable");
     }
