@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#111216">
+  <meta name="description" content="2026 Formula 1 race telemetry and classification from OpenF1 and Jolpica.">
+  <title>F1 Race Radar — 2026</title>
+  <link rel="icon" href="/*__LOGO__*/">
+  <!--__PWA_HEAD__-->
+  <style>/*__STYLES__*/</style>
+</head>
+<body data-view="radar">
+  <header class="topbar">
+    <a class="brand" href="#radar" aria-label="Race Radar">
+      <img class="brand-logo" src="/*__LOGO__*/" alt="F1" width="88" height="22">
+      <span>RADAR</span>
+    </a>
+    <nav class="views" aria-label="Race views">
+      <a href="#data" data-view-link="data">Race data</a>
+      <a href="#radar" data-view-link="radar" aria-current="page">1v1 radar</a>
+      <a href="#circuit" data-view-link="circuit">Circuit view</a>
+    </nav>
+    <div class="session" id="replay-session">
+      <span class="lap"><b>LAP <span id="lap">—</span></b><span id="lap-total"></span></span>
+      <button class="replay" id="replay" type="button" aria-label="Play archived telemetry" aria-pressed="false">
+        <svg viewBox="0 0 12 12" aria-hidden="true"><path id="play-icon" fill="currentColor" d="M3 1.5v9L10 6Z"/></svg>
+        <span id="replay-text">REPLAY</span>
+      </button>
+    </div>
+    <div class="replay-speeds" id="replay-speed" role="group" aria-label="Replay speed">
+      <div class="speed-buttons">
+        <button class="speed-option" type="button" data-speed="1" aria-pressed="false">1x</button>
+        <button class="speed-option" type="button" data-speed="2" aria-pressed="false">2x</button>
+        <button class="speed-option" type="button" data-speed="4" aria-pressed="false">4x</button>
+        <button class="speed-option" type="button" data-speed="8" aria-pressed="true">8x</button>
+      </div>
+    </div>
+    <label class="gp-picker">
+      <span class="sr-only">Select a completed 2026 Grand Prix</span>
+      <select id="gp-select" aria-label="Select a completed 2026 Grand Prix"></select>
+    </label>
+    <details class="mobile-more" id="mobile-more">
+      <summary aria-label="More race views" title="More race views">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+          <circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/>
+        </svg>
+      </summary>
+      <nav class="mobile-menu" id="mobile-menu" aria-label="Race views">
+        <a href="#radar" data-view-link="radar" aria-current="page">1v1 Radar</a>
+        <a href="#data" data-view-link="data">Race data</a>
+        <a href="#circuit" data-view-link="circuit">Circuit view</a>
+        <!--__PWA_MENU__-->
+      </nav>
+    </details>
+  </header>
+
+  <main class="dashboard" aria-label="Formula 1 race dashboard">
+    <div class="upper">
+      <section class="battles" aria-labelledby="battles-title">
+        <h2 id="battles-title"><span class="desktop-only">Race </span>battles</h2>
+        <div class="battle-list panel" id="battle-list"></div>
+        <button class="battle-select picker-trigger" id="battle-select" type="button" aria-label="Choose a race battle"
+          aria-haspopup="dialog" aria-expanded="false" aria-controls="race-picker">
+          <span id="battle-select-value">Choose battle</span><svg class="picker-chevron" width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </section>
+
+      <section class="radar" aria-labelledby="battle-title">
+        <h1 id="battle-title"><span class="mobile-radar-title">1v1 Radar</span><span id="battle-position">—</span> <span class="desktop-radar-title">BATTLE FOR <span id="battle-rank">—</span></span></h1>
+        <div class="radar-shell panel">
+          <div class="radar-heading">
+            <div class="driver driver-a"><span class="driver-identity"><span class="driver-number" id="a-number">—</span><img id="a-photo" alt="" hidden></span><strong id="a-name">—</strong></div>
+            <h2>1v1 Radar</h2>
+            <div class="driver driver-b"><strong id="b-name">—</strong><span class="driver-identity"><span class="driver-number" id="b-number">—</span><img id="b-photo" alt="" hidden></span></div>
+          </div>
+          <div class="gap-readout">
+            <div>GAP<span class="metric-colon">:</span> <strong id="gap">—</strong></div>
+            <output id="distance">—</output>
+          </div>
+          <div class="radar-track">
+            <div class="track-grid"></div>
+            <div class="track-axis"></div>
+            <div id="radar-cars" role="img" aria-label="Relative position of the selected drivers"></div>
+            <div class="aero-status">
+              <span class="drs" id="drs">—</span>
+              <span class="override" id="override">—</span>
+            </div>
+          </div>
+          <div class="momentum">
+            <div>CLOSING RATE <strong id="closing">—</strong></div>
+            <div>LAP PACE Δ <strong id="traction">—</strong></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="telemetry" aria-labelledby="telemetry-title">
+        <h2 id="telemetry-title">Telemetry<span class="desktop-only"> comparison</span></h2>
+        <div class="telemetry-shell panel">
+          <div class="speed-row">
+            <span><strong id="a-speed">—</strong> <span>km/h</span></span>
+            <span class="versus">VS</span>
+            <span><strong id="b-speed">—</strong> <span>km/h</span> <b id="speed-delta" class="delta good">—</b></span>
+          </div>
+          <div class="power-row" id="power-row"></div>
+          <section class="telemetry-overlay" aria-labelledby="overlay-title">
+            <h2 id="overlay-title">Telemetry overlay <small>LAST 24s</small></h2>
+            <div class="overlay-plot" id="overlay-plot"></div>
+          </section>
+        </div>
+      </section>
+      <section class="classification panel" id="classification" aria-labelledby="classification-title" hidden>
+        <div class="classification-heading">
+          <h2 id="classification-title">2026 race data</h2>
+          <div class="class-tabs" aria-label="Classification views">
+            <button type="button" data-classification="results" aria-pressed="true">Race results</button>
+            <button type="button" data-classification="standings" aria-pressed="false">Driver standings</button>
+          </div>
+        </div>
+        <div class="classification-scroll" tabindex="0" aria-label="Driver classification">
+          <table><thead id="class-head"></thead><tbody id="class-body"></tbody></table>
+        </div>
+      </section>
+      <div class="circuit-slot" id="circuit-slot" hidden></div>
+    </div>
+
+    <div class="lower">
+      <div class="map-slot" id="map-slot">
+        <section class="circuit panel" id="circuit-panel" aria-labelledby="circuit-title">
+          <h2 id="circuit-title">Circuit GPS</h2>
+          <div class="circuit-plot">
+            <svg viewBox="0 0 420 228" role="img" aria-label="Circuit trace from OpenF1 GPS">
+              <defs>
+                <pattern id="finish-line" width="6" height="6" patternUnits="userSpaceOnUse">
+                  <rect width="6" height="6" fill="#14151a"/>
+                  <path d="M0 0h3v3H0zm3 3h3v3H3z" fill="#ececf0"/>
+                </pattern>
+                <path id="circuit-route"/>
+              </defs>
+              <use href="#circuit-route" class="circuit-base"/>
+              <use href="#circuit-route" class="circuit-edge"/>
+              <use href="#circuit-route" class="circuit-core"/>
+              <rect id="finish-marker" width="8" height="12" fill="url(#finish-line)" hidden/>
+              <g id="circuit-markers"></g>
+            </svg>
+          </div>
+        </section>
+      </div>
+
+      <section class="predict panel" aria-labelledby="predict-title">
+        <h2 id="predict-title">Lap pace comparison</h2>
+        <div class="prediction">
+          <svg width="24" height="32" viewBox="0 0 30 38" aria-hidden="true"><path fill="currentColor" d="M17 1 2 21h11L9 37l20-24H17L22 1Z"/></svg>
+          <div><span id="pace-label">LAST COMPLETED LAP</span><strong id="pace-winner">Waiting for lap times</strong></div>
+        </div>
+        <div class="probability-plot" id="probability-plot"></div>
+      </section>
+
+      <div class="timing">
+        <section class="matrix panel" aria-labelledby="matrix-title">
+          <h2 id="matrix-title">Mini-sector matrix</h2>
+          <div class="matrix-grid" id="matrix-grid" aria-label="Mini-sector times for the selected drivers"></div>
+        </section>
+
+        <div class="history-stack">
+          <section class="history panel" aria-labelledby="history-title">
+            <h2 id="history-title">Gap history <small>(LAST 5 LAPS)</small></h2>
+            <div class="history-plot" id="history-plot"></div>
+          </section>
+          <section class="deltas panel" aria-labelledby="deltas-title">
+            <h2 id="deltas-title">Sector deltas</h2>
+            <div class="delta-grid" id="sector-deltas"></div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </main>
+  <footer class="replay-controls" aria-label="Replay controls">
+    <div class="mobile-replay" id="mobile-replay"></div>
+    <div class="lap-picker"><span>Jump to</span>
+      <button class="picker-trigger" id="lap-select" type="button" aria-label="Jump to a lap"
+        aria-haspopup="dialog" aria-expanded="false" aria-controls="race-picker">
+        <span id="lap-select-value">Lap 1</span><svg class="picker-chevron" width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+    <label class="scrubber"><span class="sr-only">Race replay timeline</span><input id="scrubber" type="range" aria-label="Seek archived race replay" min="0" max="1" value="0"></label>
+    <time id="replay-clock"></time>
+    <div class="replay-status"><span class="source-status" id="source-status" role="status">OpenF1 · Jolpica</span><span class="source-status" id="telemetry-status" role="status"></span></div>
+    <button class="sync-button" id="sync-race" type="button">Refresh data</button>
+  </footer>
+  <dialog class="race-picker" id="race-picker" aria-labelledby="picker-title">
+    <div class="picker-shell">
+      <header class="picker-header">
+        <h2 id="picker-title">Race battles</h2>
+        <button id="close-picker" class="picker-close" type="button" aria-label="Close options">
+          <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M5 5l8 8m0-8-8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        </button>
+      </header>
+      <div id="picker-options" class="picker-options" role="listbox" aria-labelledby="picker-title"></div>
+    </div>
+  </dialog>
+  <!--__PWA_INSTALL__-->
+  <script>/*__DATA__*/</script>
+  <script>/*__APP__*/</script>
+</body>
+</html>

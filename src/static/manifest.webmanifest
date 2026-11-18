@@ -1,0 +1,16 @@
+{
+  "id": "./",
+  "name": "F1 Race Radar",
+  "short_name": "Race Radar",
+  "description": "1v1 Formula 1 race telemetry and replay.",
+  "start_url": "./#radar",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["fullscreen", "standalone"],
+  "background_color": "#111216",
+  "theme_color": "#111216",
+  "icons": [
+    {"src": "./assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "./assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+  ]
+}
