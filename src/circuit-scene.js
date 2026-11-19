@@ -84,7 +84,7 @@ function drawCircuitScene(cars) {
   const visible = !mobileLayout.matches && document.body.dataset.view === "circuit";
   canvas.hidden = !visible;
   const status = $("circuit-scene-status");
-  status.hidden = !visible || Boolean(race.shape && cars.length === 2);
+  status.hidden = !visible || Boolean(race.shape && cars.some(({ key }) => key === "a") && cars.some(({ key }) => key === "b"));
   const controls = $("circuit-camera");
   controls.hidden = !visible;
   $("circuit-duel").hidden = !visible || !state.battle;
@@ -195,7 +195,14 @@ function drawCircuitScene(cars) {
     ctx.fillStyle = ink;
     ctx.fill("evenodd");
   }
-  for (const { x, y, heading, color } of cars) {
+  for (const { corners, color } of circuitGrid(route, unitsPerMetre).markings) {
+    path(corners, 0);
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.fill();
+  }
+  const orderedCars = [...cars].sort((a, b) => project.depth(a.x, a.y) - project.depth(b.x, b.y));
+  for (const { x, y, heading, color } of orderedCars) {
     drawCircuitCar(ctx, project, x, y, heading, color, unitsPerMetre);
   }
 }
@@ -276,7 +283,7 @@ function drawCircuitCockpit(ctx, width, height, driver, cars, route, units, zoom
     ctx.fillStyle = ink;
     ctx.fill();
   }
-  for (const { corners, color } of recordedCircuitGrid(race, route, units)) {
+  for (const { corners, color } of circuitGrid(route, units).markings) {
     polygon(corners.map(([x, y]) => camera(x, y)), color);
   }
   const projectCar = (x, y, z) => screen(camera(x, y, z));
@@ -285,12 +292,6 @@ function drawCircuitCockpit(ctx, width, height, driver, cars, route, units, zoom
     if (camera(car.x, car.y)[2] < near + 3) continue;
     drawCircuitCar(ctx, projectCar, car.x, car.y, car.heading ?? heading, car.color, units);
   }
-}
-
-function gridStartSample(samples, start) {
-  const sample = recentSample(samples, start, 2500);
-  const prior = sample && recentSample(samples, sample[0] - 650, 1700);
-  return prior && Math.hypot(sample[1] - prior[1], sample[2] - prior[2]) <= 20 ? sample : null;
 }
 
 function circuitTrackTangent(route, x, y) {
@@ -310,45 +311,19 @@ function circuitTrackTangent(route, x, y) {
   return { dx, dy, distance: nearest, heading: Math.atan2(dy, dx) };
 }
 
-const recordedGridCache = new WeakMap();
-
-function recordedCircuitGrid(recording, route, units) {
-  if (recording.live) return circuitGrid(route, units);
-  const locations = mediaState(recording).get(0)?.locations;
-  const cached = recordedGridCache.get(recording);
-  if (cached?.route === route && (!locations || locations === cached.locations)) return cached.markings;
-
-  const markings = circuitGrid(route, units).slice(0, 1);
-  for (const driver of Object.values(recording.participants)) {
-    const sample = gridStartSample(locations?.[driver.number] ?? driver.locations, recording.start);
-    if (!sample) continue;
-    const [x, y] = mapPoint(sample, recording.shape.transform);
-    const tangent = circuitTrackTangent(route, x, y);
-    if (!tangent || tangent.distance > 4.4 * units) continue;
-    const { dx, dy } = tangent;
-    const point = (forward, side) => [x + (dx * forward - dy * side) * units,
-      y + (dy * forward + dx * side) * units];
-    const stripe = (rear, front, left, right) => {
-      markings.push({ corners: [point(rear, left), point(rear, right),
-        point(front, right), point(front, left)], color: "#edf1ef" });
-    };
-    stripe(2.8, 3, -1.08, 1.08);
-    stripe(1.15, 3, -1.08, -.90);
-    stripe(1.15, 3, .90, 1.08);
-  }
-  const rendered = markings.length > 1 ? markings : circuitGrid(route, units);
-  recordedGridCache.set(recording, { route, locations, markings: rendered });
-  return rendered;
-}
-
 const circuitGridCache = new WeakMap();
 
 function circuitGrid(route, units) {
   const cached = circuitGridCache.get(route);
-  if (cached?.units === units) return cached.markings;
+  if (cached?.units === units) return cached;
+  const grid = { units, markings: [], slots: [] };
+  if (!(units > 0) || route.length < 2) return grid;
+  const slotCount = 22, firstSlot = 8, spacing = 8, boxLength = 2.4;
+  const carCenterOffset = 2.975;
+  const gridLength = firstSlot + (slotCount - 1) * spacing + carCenterOffset;
   // Walk backwards from the start line so each slot follows the local road.
   const series = [[0, ...route[0]]];
-  for (let i = route.length - 1; i > 0 && series.at(-1)[0] < 68; i--) {
+  for (let i = route.length - 1; i > 0 && series.at(-1)[0] < gridLength; i--) {
     const [distance, x, y] = series.at(-1);
     const [nextX, nextY] = route[i];
     const span = Math.hypot(nextX - x, nextY - y) / units;
@@ -362,21 +337,26 @@ function circuitGrid(route, units) {
     return [x0 + (x1 - x0) * t - (y1 - y0) * lateral / (d1 - d0),
       y0 + (y1 - y0) * t + (x1 - x0) * lateral / (d1 - d0)];
   };
-  const markings = [];
+  if (series.length < 2) return grid;
   const paint = (back, length, left, right) => {
     if (series.at(-1)[0] < back + length) return;
-    markings.push({ corners: [point(back, left), point(back, right),
+    grid.markings.push({ corners: [point(back, left), point(back, right),
       point(back + length, right), point(back + length, left)], color: "#edf1ef" });
   };
   paint(0, .35, -5.25, 5.25);
-  for (let slot = 0; slot < 8; slot++) {
-    const back = 8 + slot * 8, side = slot % 2 ? 2.8 : -2.8;
+  for (let slot = 0; slot < slotCount; slot++) {
+    const back = firstSlot + slot * spacing;
+    if (back + carCenterOffset > series.at(-1)[0]) break;
+    const side = slot % 2 ? 2.8 : -2.8;
     paint(back, .22, side - 1.1, side + 1.1);
-    paint(back, 2.4, side - 1.1, side - .92);
-    paint(back, 2.4, side + .92, side + 1.1);
+    paint(back, boxLength, side - 1.1, side - .92);
+    paint(back, boxLength, side + .92, side + 1.1);
+    const [frontX, frontY] = point(back + .35, side);
+    const [x, y] = point(back + carCenterOffset, side);
+    grid.slots.push({ x, y, heading: Math.atan2(frontY - y, frontX - x) });
   }
-  circuitGridCache.set(route, { units, markings });
-  return markings;
+  circuitGridCache.set(route, grid);
+  return grid;
 }
 
 const circuitCarMaterials = {

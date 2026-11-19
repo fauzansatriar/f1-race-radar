@@ -196,17 +196,28 @@ function setBadges(a, b) {
 
 function updateMap(a, b, time) {
   const positions = [];
+  const showCircuit = !mobileLayout.matches && document.body.dataset.view === "circuit";
+  const shape = race.shape;
+  const startGrid = showCircuit && !race.live && time === race.start && shape?.points.length
+    ? circuitGrid(smoothCircuitRoute(shape.points), shape.transform[2] * 10).slots
+    : null;
+  if (startGrid?.length) {
+    for (const { driver, position } of fieldAt(time)) {
+      const slot = startGrid[position - 1];
+      if (!slot) continue;
+      const key = driver === a ? "a" : driver === b ? "b" : null;
+      positions.push({ ...slot, key, color: driver.color, code: driver.code, team: driver.team });
+    }
+  }
   for (const [key, driver] of [["a", a], ["b", b]]) {
     const pin = $(`marker-${key}`);
     const samples = mediaSamples(driver, "locations");
-    const gridSample = !race.live && time === race.start ? gridStartSample(samples, race.start) : null;
-    const point = gridSample ?? circuitLocation(samples, time);
+    const point = circuitLocation(samples, time);
     pin.style.display = point && race.shape ? "" : "none";
     if (!point || !race.shape) continue;
     const [x, y] = mapPoint(point, race.shape.transform);
-    if (!mobileLayout.matches && document.body.dataset.view === "circuit") {
-      const tangent = gridSample && circuitTrackTangent(smoothCircuitRoute(race.shape.points), x, y);
-      const heading = tangent?.heading ?? circuitHeading(samples, time);
+    if (showCircuit && !positions.some((car) => car.key === key)) {
+      const heading = circuitHeading(samples, time);
       positions.push({ key, x, y, heading, color: driver.color, code: driver.code, team: driver.team });
     }
     pin.style.transform = `translate(${x}px,${y}px)`;
