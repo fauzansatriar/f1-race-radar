@@ -243,7 +243,7 @@ function drawCircuitScene(poses, openingGrid) {
   const units = openingGrid?.schematic ? openingGrid.units : unitsPerMetre;
   const route = shape?.points.length && smoothCircuitRoute(shape.points);
   const headings = dampCircuitHeadings(poses, openingGrid?.schematic ? null : route, state.time);
-  const cars = separateCircuitCars(headings, units);
+  const cars = separateCircuitCars(headings, units, !race.live && !openingGrid?.schematic ? route : null);
   if (state.battle) updateCircuitDuel();
   const cockpit = circuitCamera.startsWith("cockpit-");
   for (const button of controls.querySelectorAll("button[data-camera]")) {
@@ -550,7 +550,7 @@ function drawCircuitCockpit(ctx, width, height, driver, cars, route, units, zoom
 }
 
 function circuitTrackTangent(route, x, y) {
-  let nearest = Infinity, direction;
+  let nearest = Infinity, direction, lateral;
   for (let i = 0; i < route.length; i++) {
     const [ax, ay] = route[i], [bx, by] = route[(i + 1) % route.length];
     const dx = bx - ax, dy = by - ay, length = Math.hypot(dx, dy);
@@ -560,10 +560,11 @@ function circuitTrackTangent(route, x, y) {
     if (distance >= nearest) continue;
     nearest = distance;
     direction = [dx / length, dy / length];
+    lateral = ((y - ay) * dx - (x - ax) * dy) / length;
   }
   if (!direction) return null;
   const [dx, dy] = direction;
-  return { dx, dy, distance: nearest, heading: Math.atan2(dy, dx) };
+  return { dx, dy, distance: nearest, lateral, heading: Math.atan2(dy, dx) };
 }
 
 const circuitGridCache = new WeakMap();
@@ -734,6 +735,25 @@ function circuitRoomAlong(pose, car, placed, units, clearance, vx, vy) {
   return distance;
 }
 
+function slideCircuitCar(car, placed, units, clearance, route) {
+  const trace = circuitTrackTangent(route, car.x, car.y);
+  if (!trace || trace.distance > 5.5 * units) return false;
+  const nx = -trace.dy, ny = trace.dx;
+  const radius = circuitFootprintRadius(car, nx, ny, units);
+  const room = 5.5 * units - radius - clearance;
+  const options = [-1, 1].flatMap((side) => {
+    const distance = circuitRoomAlong(car, car, placed, units, clearance, side * nx, side * ny);
+    const lateral = trace.lateral + side * distance;
+    return Math.abs(lateral) <= room ? [{ side, distance, lateral }] : [];
+  });
+  if (!options.length) return false;
+  options.sort((a, b) => (a.distance + Math.abs(a.lateral) * .25) - (b.distance + Math.abs(b.lateral) * .25));
+  const { side, distance } = options[0];
+  car.x += nx * side * distance;
+  car.y += ny * side * distance;
+  return true;
+}
+
 function separateCircuitCars(poses, units, route) {
   if (poses.length < 2 || !(units > 0)) return poses;
   const placed = [];
@@ -741,6 +761,11 @@ function separateCircuitCars(poses, units, route) {
   for (const pose of poses) {
     const heading = pose.heading ?? (route && circuitTrackTangent(route, pose.x, pose.y)?.heading) ?? 0;
     const car = { ...pose, heading, fx: Math.cos(heading), fy: Math.sin(heading) };
+    if (route && placed.some((other) => circuitFootprintContact(car, other, units))
+        && slideCircuitCar(car, placed, units, clearance, route)) {
+      placed.push(car);
+      continue;
+    }
     let contact;
     for (let attempt = 0; attempt < 8; attempt++) {
       contact = null;
