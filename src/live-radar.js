@@ -14,7 +14,7 @@ function newLiveRace(session) {
   const name = session.meeting_name || (country ? country + " Grand Prix" : "Grand Prix");
   const scheduled = Date.parse(session.date_start);
   return {
-    live: true, session: session.session_key, circuit, scheduled, start: scheduled, end: Infinity,
+    live: true, session: session.session_key, circuit, gmtOffset: session.gmt_offset, scheduled, start: scheduled, end: Infinity,
     started: false, firstLap: Infinity, green: null, finished: null, latest: null, receivedAt: 0,
     shape: null, nextShapeCheck: 0, participants: {}, startingGrid: {}, embeddedBlocks: [], lapClock: [],
     official: { round: "live", name, shortName: name.replace(" Grand Prix", " GP"),
@@ -261,6 +261,7 @@ function acceptLiveUpdate({ session, connected, rows, source = "openf1", lap = n
       : scheduledRaces.get(session.session_key) ?? newLiveRace(session);
   liveFeed.recording = recording;
   recording.source = source;
+  recording.gmtOffset = session.gmt_offset ?? recording.gmtOffset;
   const hadShape = Boolean(recording.shape);
   mergeLiveRows(recording, rows ?? {});
   if (source === "public") {

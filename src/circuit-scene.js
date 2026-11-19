@@ -228,6 +228,7 @@ function drawCircuitScene(poses, openingGrid) {
   const visible = !mobileLayout.matches && document.body.dataset.view === "circuit";
   canvas.hidden = !visible;
   const overview = circuitCamera === "overview";
+  const daylight = circuitDaylight(race, state.time);
   const interactive = visible && overview && Boolean(shape?.points.length);
   canvas.tabIndex = interactive ? 0 : -1;
   $("circuit-map-help").hidden = !interactive;
@@ -283,11 +284,11 @@ function drawCircuitScene(poses, openingGrid) {
   }
   ctx.setTransform(density, 0, 0, density, 0, 0);
   if (cockpitReady && unitsPerMetre && !openingGrid?.schematic) {
-    drawCircuitCockpit(ctx, width, height, followed, cars, route, unitsPerMetre, zoom);
+    drawCircuitCockpit(ctx, width, height, followed, cars, route, unitsPerMetre, zoom, daylight);
     return;
   }
   if (openingGrid && ((overview && !circuitOverviewAdjusted()) || openingGrid.schematic)) {
-    drawCircuitStartOverview(ctx, width, height, openingGrid, cars, openingGrid.units);
+    drawCircuitStartOverview(ctx, width, height, openingGrid, cars, openingGrid.units, daylight);
     return;
   }
   const scale = Math.min(width / 345, height / 167) * zoom;
@@ -312,8 +313,8 @@ function drawCircuitScene(poses, openingGrid) {
     });
   };
   const sky = ctx.createLinearGradient(0, 0, 0, height);
-  sky.addColorStop(0, "#0a1018");
-  sky.addColorStop(1, "#18242e");
+  sky.addColorStop(0, daylight.overviewTop);
+  sky.addColorStop(1, daylight.ground);
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, width, height);
   ctx.strokeStyle = "#2e4051";
@@ -380,7 +381,7 @@ function drawCircuitScene(poses, openingGrid) {
   drawCircuitDriverPins(ctx, [...orderedCars].reverse(), width, height, project, unitsPerMetre);
 }
 
-function drawCircuitStartOverview(ctx, width, height, grid, cars, units) {
+function drawCircuitStartOverview(ctx, width, height, grid, cars, units, daylight) {
   const first = grid.slots[0], last = grid.slots.at(-1);
   const dx = first.x - last.x, dy = first.y - last.y;
   const length = Math.hypot(dx, dy);
@@ -394,7 +395,7 @@ function drawCircuitStartOverview(ctx, width, height, grid, cars, units) {
   ];
   project.depth = (x, y) => project(x, y)[1];
 
-  ctx.fillStyle = "#24323a";
+  ctx.fillStyle = daylight.ground;
   ctx.fillRect(0, 0, width, height);
   const polygon = (points, color) => {
     ctx.beginPath();
@@ -469,7 +470,7 @@ function updateCircuitDuel() {
   }
 }
 
-function drawCircuitCockpit(ctx, width, height, driver, cars, route, units, zoom) {
+function drawCircuitCockpit(ctx, width, height, driver, cars, route, units, zoom, daylight) {
   const chasePose = circuitChasePose(driver, state.time, units);
   const { heading } = chasePose;
   const cos = Math.cos(heading), sin = Math.sin(heading);
@@ -508,11 +509,12 @@ function drawCircuitCockpit(ctx, width, height, driver, cars, route, units, zoom
     }
   };
   const sky = ctx.createLinearGradient(0, 0, 0, horizon);
-  sky.addColorStop(0, "#24445d");
-  sky.addColorStop(1, "#b2c5d4");
+  sky.addColorStop(0, daylight.sky);
+  sky.addColorStop(.65, daylight.middle);
+  sky.addColorStop(1, daylight.horizon);
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, width, horizon);
-  ctx.fillStyle = "#293940";
+  ctx.fillStyle = daylight.ground;
   ctx.fillRect(0, horizon, width, height - horizon);
   const routeInCamera = route.map(([x, y]) => camera(x, y));
   const sections = routeInCamera.map(([x, y, z], i) => {

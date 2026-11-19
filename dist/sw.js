@@ -1,7 +1,7 @@
 "use strict";
 
 const CACHE_PREFIX = "f1-race-radar-";
-const CACHE = CACHE_PREFIX + "b36a49a60f7f8009";
+const CACHE = CACHE_PREFIX + "57189fef20459c7e";
 const SHELL = ["./","./assets/cars/alpine.webp","./assets/cars/astonmartin.webp","./assets/cars/audi.webp","./assets/cars/cadillac.webp","./assets/cars/ferrari.webp","./assets/cars/haasf1team.webp","./assets/cars/mclaren.webp","./assets/cars/mercedes.webp","./assets/cars/racingbulls.webp","./assets/cars/redbullracing.webp","./assets/cars/williams.webp","./assets/icon-180.png","./assets/icon-192.png","./assets/icon-512.png","./assets/icon-maskable-512.png","./index.html","./manifest.webmanifest","./pwa.js"];
 const entry = new URL("./", self.registration.scope).href;
 const assetPaths = new Set(SHELL.map((route) => new URL(route, entry).href));

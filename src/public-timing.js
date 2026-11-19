@@ -38,6 +38,7 @@ function readPublicSession(info) {
     country_name: info.Meeting?.Country?.Name,
     circuit_short_name: info.Meeting?.Circuit?.ShortName,
     circuit_key: info.Meeting?.Circuit?.Key,
+    gmt_offset: offset,
   };
 }
 

@@ -87,7 +87,7 @@ function readCatalog(resultsDocument, sessions) {
       round: race.round,
       name: race.raceName,
       date: race.date,
-      session: session ? { session_key: session.session_key, circuit_short_name: session.circuit_short_name } : null,
+      session: session ? { session_key: session.session_key, circuit_short_name: session.circuit_short_name, gmt_offset: session.gmt_offset } : null,
     };
   }).sort((a, b) => Number(b.round) - Number(a.round));
 }
@@ -200,7 +200,7 @@ function packRace(session, official, input, window) {
   if (!Object.keys(participants).length || !participants[official.winner]?.laps.length) {
     throw new Error("OpenF1 timing unavailable for this race.");
   }
-  return { session: session.session_key, official, start, end, shape: input.shape ?? null,
+  return { session: session.session_key, gmtOffset: session.gmt_offset, official, start, end, shape: input.shape ?? null,
     circuit: session.circuit_short_name, participants, embeddedBlocks: input.embeddedBlocks ?? [] };
 }
 
