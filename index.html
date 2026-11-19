@@ -826,10 +826,36 @@ body[data-view="data"] .telemetry { display: none; }
 .circuit-zoom { display: flex; align-items: center; gap: 5px; margin-inline-start: 7px; }
 .circuit-zoom output { min-width: 4ch; text-align: center; color: var(--text); font-size: 10px; }
 
-.circuit-duel { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 7px; }
-.circuit-duel span { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-left: 2px solid var(--driver-color); background: #22232b; border-radius: 4px; font-size: 10px; }
-.circuit-duel img { width: 18px; height: 16px; object-fit: contain; }
-.circuit-duel small { color: var(--muted); }
+.circuit-duel {
+  display: flex;
+  align-items: center;
+  margin: 0 0 8px;
+  border-bottom: 1px solid var(--edge);
+  font-variant-numeric: tabular-nums;
+}
+.circuit-duel-entry {
+  display: grid;
+  grid-template-columns: 3.1ch 18px 3.6ch;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 14px 8px 2px;
+  font-size: 12px;
+  line-height: 1;
+}
+.circuit-duel-entry + .circuit-duel-entry {
+  padding-inline-start: 14px;
+  border-inline-start: 1px solid var(--edge);
+}
+.circuit-duel-entry small { grid-column: 1; color: #f2f2f4; font-size: 12px; font-weight: 700; }
+.circuit-duel-entry img { grid-column: 2; width: 18px; height: 16px; object-fit: contain; }
+.circuit-duel-entry b { grid-column: 3; font-size: 11px; }
+.circuit-duel-entry::after {
+  grid-column: 2 / 4;
+  height: 2px;
+  margin-block-start: -5px;
+  background: var(--driver-color);
+  content: "";
+}
 </style>
 </head>
 <body data-view="radar">
@@ -967,9 +993,9 @@ body[data-view="data"] .telemetry { display: none; }
               </div>
             </div>
           </div>
-          <div id="circuit-duel" class="circuit-duel" aria-label="Duel race positions" hidden>
-            <span><img id="circuit-logo-a" alt="" hidden><b id="circuit-driver-a"></b><small id="circuit-position-a"></small></span>
-            <span><img id="circuit-logo-b" alt="" hidden><b id="circuit-driver-b"></b><small id="circuit-position-b"></small></span>
+          <div id="circuit-duel" class="circuit-duel" role="group" aria-label="Duel race positions" hidden>
+            <span class="circuit-duel-entry"><small id="circuit-position-a"></small><img id="circuit-logo-a" alt="" hidden><b id="circuit-driver-a"></b></span>
+            <span class="circuit-duel-entry"><small id="circuit-position-b"></small><img id="circuit-logo-b" alt="" hidden><b id="circuit-driver-b"></b></span>
           </div>
           <div class="circuit-plot">
             <canvas id="circuit-scene" role="img" aria-label="Interactive circuit map" aria-describedby="circuit-map-help" hidden></canvas>
