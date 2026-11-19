@@ -906,7 +906,7 @@ $("circuit-camera").addEventListener("click", (event) => {
   const button = event.target.closest("button[data-camera]");
   if (!button || button.disabled) return;
   circuitCamera = button.dataset.camera;
-  if (state.battle) renderMotion(true);
+  setCircuitZoom(circuitZoom);
 });
 document.addEventListener("visibilitychange", () => {
   state.lastFrame = null;

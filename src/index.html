@@ -137,6 +137,8 @@
               <button type="button" data-camera="overview" aria-pressed="true">Overview</button>
               <button type="button" data-camera="a" aria-pressed="false" disabled>Follow A</button>
               <button type="button" data-camera="b" aria-pressed="false" disabled>Follow B</button>
+              <button type="button" data-camera="cockpit-a" aria-pressed="false" disabled>Cockpit A</button>
+              <button type="button" data-camera="cockpit-b" aria-pressed="false" disabled>Cockpit B</button>
               <div class="circuit-zoom" role="group" aria-label="Circuit zoom">
                 <button id="circuit-zoom-out" type="button" aria-label="Zoom out">−</button>
                 <output id="circuit-zoom-readout" aria-live="polite">1×</output>
@@ -144,6 +146,10 @@
                 <button id="circuit-zoom-reset" type="button">Reset zoom</button>
               </div>
             </div>
+          </div>
+          <div id="circuit-duel" class="circuit-duel" aria-label="Duel race positions" hidden>
+            <span><img id="circuit-logo-a" alt="" hidden><b id="circuit-driver-a"></b><small id="circuit-position-a"></small></span>
+            <span><img id="circuit-logo-b" alt="" hidden><b id="circuit-driver-b"></b><small id="circuit-position-b"></small></span>
           </div>
           <div class="circuit-plot">
             <canvas id="circuit-scene" role="img" aria-label="Perspective circuit map with both drivers' recorded positions" hidden></canvas>

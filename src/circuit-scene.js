@@ -3,7 +3,7 @@ let circuitZoom = 0;
 const MAX_CIRCUIT_ZOOM = 8;
 
 function setCircuitZoom(step) {
-  circuitZoom = clamp(step, 0, MAX_CIRCUIT_ZOOM);
+  circuitZoom = clamp(step, 0, circuitCamera.startsWith("cockpit-") ? 2 : MAX_CIRCUIT_ZOOM);
   if (state.battle) renderMotion(true);
   else drawCircuitScene([]);
 }
@@ -42,24 +42,30 @@ function drawCircuitScene(cars) {
   status.hidden = !visible || Boolean(race.shape && cars.length === 2);
   const controls = $("circuit-camera");
   controls.hidden = !visible;
+  $("circuit-duel").hidden = !visible || !state.battle;
   if (!visible) return;
+  if (state.battle) updateCircuitDuel();
+  const cockpit = circuitCamera.startsWith("cockpit-");
   for (const button of controls.querySelectorAll("button[data-camera]")) {
     const key = button.dataset.camera;
-    const driver = state.battle?.[key];
+    const driver = state.battle?.[key.replace("cockpit-", "")];
     if (key !== "overview") {
       button.disabled = !driver;
-      const label = driver ? `Follow ${driver.code}` : `Follow ${key.toUpperCase()}`;
+      const label = `${key.startsWith("cockpit-") ? "Cockpit" : "Follow"} ${driver?.code ?? key.at(-1).toUpperCase()}`;
       if (button.textContent !== label) button.textContent = label;
     }
     button.setAttribute("aria-pressed", String(key === circuitCamera));
   }
-  const followed = cars.find((car) => car.key === circuitCamera);
+  const followed = cars.find((car) => car.key === circuitCamera.replace("cockpit-", ""));
+  const cockpitReady = cockpit && Boolean(followed && race.shape?.points.length);
+  if (cockpit && !cockpitReady) status.hidden = false;
   const zoom = 2 ** (circuitZoom / 2);
   text("circuit-zoom-readout", `${Number(zoom.toFixed(1))}×`);
   $("circuit-zoom-out").disabled = !race.shape || circuitZoom === 0;
-  $("circuit-zoom-in").disabled = !race.shape || circuitZoom === MAX_CIRCUIT_ZOOM;
+  $("circuit-zoom-in").disabled = !race.shape || circuitZoom === (cockpit ? 2 : MAX_CIRCUIT_ZOOM);
   $("circuit-zoom-reset").disabled = !race.shape || circuitZoom === 0;
   text("circuit-scene-status", !race.shape ? "Circuit GPS trace unavailable"
+    : cockpit && !cockpitReady ? "Cockpit waiting for GPS"
     : circuitCamera !== "overview" && !followed ? "Follow camera waiting for GPS"
     : cars.length ? "One driver has no GPS sample here" : "Driver GPS samples unavailable here");
 
@@ -76,6 +82,10 @@ function drawCircuitScene(cars) {
   // F1 location coordinates use decimetres. Convert metres into the same
   // normalized map units as the GPS trace before projecting either object.
   const unitsPerMetre = (race.shape?.transform[2] ?? 0) * 10;
+  if (cockpitReady && unitsPerMetre && race.shape?.points.length) {
+    drawCircuitCockpit(ctx, width, height, followed, cars, race.shape.points, unitsPerMetre, zoom);
+    return;
+  }
   const overviewScale = Math.min(width / 345, height / 167);
   const baseScale = followed && unitsPerMetre
     ? Math.max(overviewScale, Math.min(width / 220, height / 92) / unitsPerMetre)
@@ -139,33 +149,117 @@ function drawCircuitScene(cars) {
     ctx.fillStyle = ink;
     ctx.fill("evenodd");
   }
-  cars.forEach(({ x, y, color, code, heading, team }, index) => {
-    const [px, py] = project(x, y);
-    if (px < 0 || px > width || py < 0 || py > height) return;
-    const labelY = Math.max(16, py - 21 - index * 24);
-    const labelX = Math.max(39, Math.min(width - 39, px + (index ? 36 : -36)));
+  for (const { x, y, heading, color } of cars) {
     drawCircuitCar(ctx, project, x, y, heading, color, 5.3 * unitsPerMetre / 11.6);
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(px, py);
-    ctx.lineTo(labelX, labelY);
-    ctx.stroke();
-    ctx.fillStyle = "#111820";
-    const logo = circuitTeamLogo(team);
-    const badgeWidth = logo ? 72 : 52;
-    ctx.fillRect(labelX - badgeWidth / 2, labelY - 12, badgeWidth, 24);
-    if (logo) {
-      const factor = Math.min(21 / logo.naturalWidth, 16 / logo.naturalHeight);
-      const logoWidth = logo.naturalWidth * factor, logoHeight = logo.naturalHeight * factor;
-      ctx.drawImage(logo, labelX - 21 - logoWidth / 2, labelY - logoHeight / 2, logoWidth, logoHeight);
+  }
+}
+
+function updateCircuitDuel() {
+  for (const [key, offset] of [["a", -1], ["b", 0]]) {
+    const driver = state.battle[key];
+    text(`circuit-driver-${key}`, driver.code);
+    text(`circuit-position-${key}`, `P${state.battle.position + offset}`);
+    const image = $(`circuit-logo-${key}`);
+    const logo = circuitTeamLogo(driver.team);
+    image.hidden = !logo;
+    if (logo && image.src !== logo.src) image.src = logo.src;
+    image.parentElement.style.setProperty("--driver-color", driver.color);
+  }
+}
+
+function drawCircuitCockpit(ctx, width, height, driver, cars, route, units, zoom) {
+  let heading = driver.heading;
+  if (!Number.isFinite(heading)) {
+    // A stationary starter has no GPS direction yet. Use the nearest trace tangent.
+    let distance = Infinity;
+    for (let i = 0; i < route.length; i++) {
+      const [x, y] = route[i];
+      const candidate = Math.hypot(x - driver.x, y - driver.y);
+      if (candidate >= distance) continue;
+      const [nextX, nextY] = route[(i + 1) % route.length];
+      if (nextX === x && nextY === y) continue;
+      heading = Math.atan2(nextY - y, nextX - x);
+      distance = candidate;
     }
-    ctx.fillStyle = "#f4f7fa";
-    ctx.font = `700 11px ${getComputedStyle(document.body).getPropertyValue("--font")}`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(code, labelX + (logo ? 10 : 0), labelY, 46);
+  }
+  if (!Number.isFinite(heading)) return;
+  const cos = Math.cos(heading), sin = Math.sin(heading);
+  const focal = Math.min(width * .65, height * 1.23);
+  const chase = 10 / zoom;
+  const eyeHeight = 2.6;
+  const horizon = height * .29;
+  const near = 1.25;
+  // Camera space in metres. Camera and car use the same interpolated GPS sample.
+  const camera = (x, y, elevation = 0) => {
+    const dx = (x - driver.x) / units, dy = (y - driver.y) / units;
+    return [(dy * cos - dx * sin), eyeHeight - elevation / units, dx * cos + dy * sin + chase];
+  };
+  const screen = ([x, y, depth]) => [width / 2 + x * focal / depth, horizon + y * focal / depth];
+  const polygon = (points, color) => {
+    const clipped = [];
+    let previous = points.at(-1);
+    for (const current of points) {
+      if ((previous[2] >= near) !== (current[2] >= near)) {
+        const t = (near - previous[2]) / (current[2] - previous[2]);
+        clipped.push([previous[0] + t * (current[0] - previous[0]), previous[1] + t * (current[1] - previous[1]), near]);
+      }
+      if (current[2] >= near) clipped.push(current);
+      previous = current;
+    }
+    if (clipped.length < 3) return;
+    ctx.beginPath();
+    clipped.forEach((point, index) => {
+      if (index) ctx.lineTo(...screen(point));
+      else ctx.moveTo(...screen(point));
+    });
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.fill();
+  };
+  const sky = ctx.createLinearGradient(0, 0, 0, horizon);
+  sky.addColorStop(0, "#24445d");
+  sky.addColorStop(1, "#b2c5d4");
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, width, horizon);
+  ctx.fillStyle = "#293940";
+  ctx.fillRect(0, horizon, width, height - horizon);
+  const routeInCamera = route.map(([x, y]) => camera(x, y));
+  const sections = routeInCamera.map(([x, y, z], i) => {
+    const a = routeInCamera[(i + route.length - 1) % route.length];
+    const b = routeInCamera[(i + 1) % route.length];
+    const dx = b[0] - a[0], dz = b[2] - a[2];
+    const length = Math.hypot(dx, dz) || 1;
+    return { z, edge: (metres) => [x - dz * metres / length, y, z + dx * metres / length] };
   });
+  const segments = sections.map((section, i) => [section, sections[(i + 1) % sections.length]])
+    .filter(([a, b]) => Math.max(a.z, b.z) >= near && Math.min(a.z, b.z) < 450)
+    .sort(([a, b], [c, d]) => c.z + d.z - a.z - b.z);
+  for (const [a, b] of segments) {
+    for (const [edge, ink] of [[7, "#52636a"], [6, "#d1d9df"], [5.83, "#313942"]]) {
+      polygon([a.edge(-edge), a.edge(edge), b.edge(edge), b.edge(-edge)], ink);
+    }
+  }
+  const start = route[0], next = route[1];
+  const dx = next[0] - start[0], dy = next[1] - start[1];
+  const length = Math.hypot(dx, dy);
+  if (length > 0) {
+    const point = (back, side) => camera(start[0] + (-back * dx - side * dy) / length * units,
+      start[1] + (-back * dy + side * dx) / length * units, .02 * units);
+    polygon([point(0, -5.7), point(0, 5.7), point(.35, 5.7), point(.35, -5.7)], "#eef2f2");
+    // Illustrative grid slots aligned with the GPS finish straight.
+    for (let slot = 0; slot < 8; slot++) {
+      const back = 8 + slot * 8, side = slot % 2 ? 2.8 : -2.8;
+      polygon([point(back, side - 1.1), point(back, side + 1.1), point(back + .22, side + 1.1), point(back + .22, side - 1.1)], "#edf1ef");
+      for (const edge of [side - 1.1, side + .92]) {
+        polygon([point(back, edge), point(back + 2.4, edge), point(back + 2.4, edge + .18), point(back, edge + .18)], "#edf1ef");
+      }
+    }
+  }
+  for (const car of [...cars].sort((a, b) => camera(b.x, b.y)[2] - camera(a.x, a.y)[2])) {
+    if (camera(car.x, car.y)[2] < near + 3) continue;
+    drawCircuitCar(ctx, (x, y, z) => screen(camera(x, y, z)), car.x, car.y,
+      car.heading ?? heading, car.color, 5.3 * units / 11.6);
+  }
 }
 
 function drawCircuitCar(ctx, project, x, y, heading, color, size) {

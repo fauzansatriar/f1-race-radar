@@ -801,3 +801,8 @@ body[data-view="data"] .telemetry { display: none; }
 
 .circuit-zoom { display: flex; align-items: center; gap: 5px; margin-inline-start: 7px; }
 .circuit-zoom output { min-width: 4ch; text-align: center; color: var(--text); font-size: 10px; }
+
+.circuit-duel { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 7px; }
+.circuit-duel span { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-left: 2px solid var(--driver-color); background: #22232b; border-radius: 4px; font-size: 10px; }
+.circuit-duel img { width: 18px; height: 16px; object-fit: contain; }
+.circuit-duel small { color: var(--muted); }

@@ -8,6 +8,10 @@
 
 ## Latest update
 
+**19 November 2026 · Cockpit camera and race positions**
+
+- Either driver in the desktop duel can be followed with a low chase camera. The view shows illustrative starting grid markings and team badges with race positions above the scene.
+
 **19 November 2026 · Circuit zoom with shared GPS scale**
 
 - Zoom works in Overview and Follow. Track and cars share the same metre scale, and zoom leaves their GPS positions unchanged.
