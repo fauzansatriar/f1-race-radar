@@ -251,6 +251,10 @@ function updateMap(a, b, time) {
   drawCircuitScene(positions, grid);
 }
 
+function redrawCircuitMap() {
+  updateMap(state.battle?.a, state.battle?.b, state.time);
+}
+
 function syncClock() {
   const time = state.time;
   const lap = at(state.laps, time)?.[1] ?? 1;
@@ -568,6 +572,7 @@ function renderShape() {
 }
 
 function renderRace() {
+  resetCircuitOverview();
   $("race-picker").close();
   state.battle = null;
   setPlayback(false);
@@ -940,7 +945,11 @@ layoutReplayControls();
 initializeRacePickers();
 $("circuit-zoom-in").addEventListener("click", () => setCircuitZoom(circuitZoom + 1));
 $("circuit-zoom-out").addEventListener("click", () => setCircuitZoom(circuitZoom - 1));
-$("circuit-zoom-reset").addEventListener("click", () => setCircuitZoom(0));
+$("circuit-zoom-reset").addEventListener("click", () => {
+  if (circuitCamera === "overview") resetCircuitOverview();
+  setCircuitZoom(0);
+});
+installCircuitOverviewControls($("circuit-scene"));
 $("circuit-camera").addEventListener("click", (event) => {
   const button = event.target.closest("button[data-camera]");
   if (!button || button.disabled) return;

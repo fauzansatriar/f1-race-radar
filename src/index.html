@@ -152,7 +152,8 @@
             <span><img id="circuit-logo-b" alt="" hidden><b id="circuit-driver-b"></b><small id="circuit-position-b"></small></span>
           </div>
           <div class="circuit-plot">
-            <canvas id="circuit-scene" role="img" aria-label="Perspective circuit map with both drivers' recorded positions" hidden></canvas>
+            <canvas id="circuit-scene" role="img" aria-label="Interactive circuit map" aria-describedby="circuit-map-help" hidden></canvas>
+            <p id="circuit-map-help" class="circuit-map-help" hidden>Drag or arrows to rotate · Shift-drag or WASD to pan · Scroll or +/− to zoom · Home to reset</p>
             <p id="circuit-scene-status" class="circuit-scene-status" hidden></p>
             <svg viewBox="0 0 420 228" role="img" aria-label="Circuit trace from OpenF1 GPS">
               <defs>

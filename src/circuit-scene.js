@@ -1,11 +1,89 @@
 let circuitCamera = "overview";
 let circuitZoom = 0;
 const MAX_CIRCUIT_ZOOM = 8;
+const defaultCircuitOverview = { yaw: Math.PI / 18, pitch: .46, panX: 0, panY: 0 };
+let circuitOverview = { ...defaultCircuitOverview };
+
+function circuitOverviewAdjusted() {
+  return circuitZoom > 0 || Object.keys(defaultCircuitOverview)
+    .some((key) => circuitOverview[key] !== defaultCircuitOverview[key]);
+}
+
+function resetCircuitOverview() {
+  circuitOverview = { ...defaultCircuitOverview };
+}
+
+function installCircuitOverviewControls(canvas) {
+  let drag = null;
+  let redraw = 0;
+  const available = () => canvas.tabIndex === 0;
+  const refresh = () => {
+    if (redraw) return;
+    redraw = requestAnimationFrame(() => {
+      redraw = 0;
+      redrawCircuitMap();
+    });
+  };
+  const pan = (x, y) => {
+    circuitOverview.panX = clamp(circuitOverview.panX + x / canvas.clientWidth, -2, 2);
+    circuitOverview.panY = clamp(circuitOverview.panY + y / canvas.clientHeight, -2, 2);
+  };
+  const orbit = (yaw, pitch) => {
+    circuitOverview.yaw = (circuitOverview.yaw + yaw) % (2 * Math.PI);
+    circuitOverview.pitch = clamp(circuitOverview.pitch + pitch, .22, 1);
+  };
+  canvas.addEventListener("pointerdown", (event) => {
+    if (!available() || (event.button !== 0 && event.button !== 2)) return;
+    canvas.focus({ preventScroll: true });
+    canvas.setPointerCapture(event.pointerId);
+    drag = { id: event.pointerId, x: event.clientX, y: event.clientY, pan: event.button === 2 };
+    canvas.dataset.dragging = "";
+  });
+  canvas.addEventListener("pointermove", (event) => {
+    if (!available() || drag?.id !== event.pointerId) return;
+    const dx = event.clientX - drag.x, dy = event.clientY - drag.y;
+    drag.x = event.clientX;
+    drag.y = event.clientY;
+    if (drag.pan || event.shiftKey) pan(dx, dy);
+    else orbit(dx * .008, -dy * .004);
+    refresh();
+  });
+  canvas.addEventListener("lostpointercapture", () => {
+    drag = null;
+    delete canvas.dataset.dragging;
+  });
+  canvas.addEventListener("contextmenu", (event) => {
+    if (available()) event.preventDefault();
+  });
+  canvas.addEventListener("wheel", (event) => {
+    if (!available() || event.ctrlKey || !event.deltaY) return;
+    event.preventDefault();
+    setCircuitZoom(circuitZoom - Math.sign(event.deltaY));
+  }, { passive: false });
+  canvas.addEventListener("keydown", (event) => {
+    if (!available() || event.altKey || event.ctrlKey || event.metaKey) return;
+    switch (event.key.toLowerCase()) {
+      case "arrowleft": orbit(-.12, 0); break;
+      case "arrowright": orbit(.12, 0); break;
+      case "arrowup": orbit(0, .07); break;
+      case "arrowdown": orbit(0, -.07); break;
+      case "w": pan(0, 26); break;
+      case "a": pan(26, 0); break;
+      case "s": pan(0, -26); break;
+      case "d": pan(-26, 0); break;
+      case "+": case "=": setCircuitZoom(circuitZoom + 1); break;
+      case "-": setCircuitZoom(circuitZoom - 1); break;
+      case "home": resetCircuitOverview(); setCircuitZoom(0); break;
+      default: return;
+    }
+    event.preventDefault();
+    refresh();
+  });
+}
 
 function setCircuitZoom(step) {
   circuitZoom = clamp(step, 0, circuitCamera.startsWith("cockpit-") ? 2 : MAX_CIRCUIT_ZOOM);
-  if (state.battle) renderMotion(true);
-  else drawCircuitScene([]);
+  redrawCircuitMap();
 }
 const circuitCarMesh = /*__CAR_2026_MESH__*/ [];
 const circuitTeamLogos = /*__TEAM_LOGOS__*/ {};
@@ -102,6 +180,10 @@ function drawCircuitScene(cars, openingGrid) {
   const canvas = $("circuit-scene");
   const visible = !mobileLayout.matches && document.body.dataset.view === "circuit";
   canvas.hidden = !visible;
+  const overview = circuitCamera === "overview";
+  const interactive = visible && overview && Boolean(shape?.points.length);
+  canvas.tabIndex = interactive ? 0 : -1;
+  $("circuit-map-help").hidden = !interactive;
   const status = $("circuit-scene-status");
   status.hidden = !visible || Boolean(shape && cars.some(({ key }) => key === "a") && cars.some(({ key }) => key === "b"));
   const controls = $("circuit-camera");
@@ -128,7 +210,9 @@ function drawCircuitScene(cars, openingGrid) {
   text("circuit-zoom-readout", `${Number(zoom.toFixed(1))}×`);
   $("circuit-zoom-out").disabled = !shape || circuitZoom === 0;
   $("circuit-zoom-in").disabled = !shape || circuitZoom === (cockpit ? 2 : MAX_CIRCUIT_ZOOM);
-  $("circuit-zoom-reset").disabled = !shape || circuitZoom === 0;
+  const reset = $("circuit-zoom-reset");
+  reset.disabled = !shape || !(overview ? circuitOverviewAdjusted() : circuitZoom > 0);
+  text("circuit-zoom-reset", overview ? "Reset view" : "Reset zoom");
   text("circuit-scene-status", openingGrid && !cars.length ? "Starting order unavailable"
     : openingGrid?.schematic ? "Starting grid · circuit GPS trace unavailable"
     : !shape ? "Circuit GPS trace unavailable"
@@ -153,7 +237,7 @@ function drawCircuitScene(cars, openingGrid) {
     drawCircuitCockpit(ctx, width, height, followed, cars, smoothCircuitRoute(shape.points), unitsPerMetre, zoom);
     return;
   }
-  if (openingGrid && (circuitCamera === "overview" || openingGrid.schematic)) {
+  if (openingGrid && ((overview && !circuitOverviewAdjusted()) || openingGrid.schematic)) {
     drawCircuitStartOverview(ctx, width, height, openingGrid, cars, openingGrid.units);
     return;
   }
@@ -162,16 +246,18 @@ function drawCircuitScene(cars, openingGrid) {
     ? Math.max(overviewScale, Math.min(width / 220, height / 92) / unitsPerMetre)
     : overviewScale;
   const scale = baseScale * zoom;
+  const { yaw, pitch, panX, panY } = overview ? circuitOverview : defaultCircuitOverview;
+  const cosine = Math.cos(yaw), sine = Math.sin(yaw);
   // Map the GPS plane into a pitched camera. The depth below the track is decorative.
   const project = (x, y, elevation = 0) => {
     const dx = x - (followed?.x ?? 210), dy = y - (followed?.y ?? 111);
-    const across = dx * .985 + dy * .174;
-    const depth = dy * .985 - dx * .174;
+    const across = dx * cosine + dy * sine;
+    const depth = dy * cosine - dx * sine;
     const perspective = 1 / Math.max(.48, 1 - depth / 440);
-    return [width / 2 + across * perspective * scale,
-      height * .51 + (depth * .46 - elevation) * perspective * scale];
+    return [width * (.5 + panX) + across * perspective * scale,
+      height * (.51 + panY) + (depth * pitch - elevation) * perspective * scale];
   };
-  project.depth = (x, y) => y * .985 - x * .174;
+  project.depth = (x, y) => y * cosine - x * sine;
   const path = (points, elevation) => {
     ctx.beginPath();
     points.forEach(([x, y], index) => {
@@ -247,7 +333,7 @@ function drawCircuitScene(cars, openingGrid) {
       drawCircuitCar(ctx, project, x, y, heading, color, unitsPerMetre);
     }
   }
-  drawCircuitGridLabels(ctx, grid.slots, width, height, project);
+  if (!overview) drawCircuitGridLabels(ctx, grid.slots, width, height, project);
 }
 
 function drawCircuitStartOverview(ctx, width, height, grid, cars, units) {
