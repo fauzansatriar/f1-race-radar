@@ -195,7 +195,8 @@ function drawCircuitScene(cars) {
     ctx.fillStyle = ink;
     ctx.fill("evenodd");
   }
-  for (const { corners, color } of circuitGrid(route, unitsPerMetre).markings) {
+  const grid = circuitGrid(route, unitsPerMetre);
+  for (const { corners, color } of grid.markings) {
     path(corners, 0);
     ctx.closePath();
     ctx.fillStyle = color;
@@ -205,6 +206,7 @@ function drawCircuitScene(cars) {
   for (const { x, y, heading, color } of orderedCars) {
     drawCircuitCar(ctx, project, x, y, heading, color, unitsPerMetre);
   }
+  drawCircuitGridLabels(ctx, grid.slots, width, height, project);
 }
 
 function updateCircuitDuel() {
@@ -283,7 +285,8 @@ function drawCircuitCockpit(ctx, width, height, driver, cars, route, units, zoom
     ctx.fillStyle = ink;
     ctx.fill();
   }
-  for (const { corners, color } of circuitGrid(route, units).markings) {
+  const grid = circuitGrid(route, units);
+  for (const { corners, color } of grid.markings) {
     polygon(corners.map(([x, y]) => camera(x, y)), color);
   }
   const projectCar = (x, y, z) => screen(camera(x, y, z));
@@ -292,6 +295,10 @@ function drawCircuitCockpit(ctx, width, height, driver, cars, route, units, zoom
     if (camera(car.x, car.y)[2] < near + 3) continue;
     drawCircuitCar(ctx, projectCar, car.x, car.y, car.heading ?? heading, car.color, units);
   }
+  drawCircuitGridLabels(ctx, grid.slots, width, height, (x, y) => {
+    const point = camera(x, y);
+    return point[2] >= near ? screen(point) : null;
+  });
 }
 
 function circuitTrackTangent(route, x, y) {
@@ -353,10 +360,35 @@ function circuitGrid(route, units) {
     paint(back, boxLength, side + .92, side + 1.1);
     const [frontX, frontY] = point(back + .35, side);
     const [x, y] = point(back + carCenterOffset, side);
-    grid.slots.push({ x, y, heading: Math.atan2(frontY - y, frontX - x) });
+    grid.slots.push({ x, y, heading: Math.atan2(frontY - y, frontX - x),
+      label: `P${slot + 1}`, labelAnchor: point(back - .8, side) });
   }
   circuitGridCache.set(route, grid);
   return grid;
+}
+
+function drawCircuitGridLabels(ctx, slots, width, height, project) {
+  ctx.save();
+  ctx.font = "bold 12px system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.lineJoin = "round";
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = "#202830";
+  ctx.fillStyle = "#fff";
+  const painted = [];
+  for (const { label, labelAnchor } of slots) {
+    const point = project(...labelAnchor);
+    if (!point) continue;
+    const [x, y] = point;
+    const half = ctx.measureText(label).width / 2 + 2;
+    if (x < half || x > width - half || y < 8 || y > height - 8) continue;
+    if (painted.some(([px, py, extent]) => Math.abs(y - py) < 15 && Math.abs(x - px) < half + extent)) continue;
+    ctx.strokeText(label, x, y);
+    ctx.fillText(label, x, y);
+    painted.push([x, y, half]);
+  }
+  ctx.restore();
 }
 
 const circuitCarMaterials = {
