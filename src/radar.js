@@ -212,7 +212,8 @@ function updateMap(a, b, time) {
     const pose = slot ? circuitLaunchPose(slot, samples, shape.transform, race.start, time)
       : { x, y, heading: circuitHeading(samples, time) };
     const key = driver === a ? "a" : driver === b ? "b" : null;
-    positions.push({ ...pose, key, color: driver.color, code: driver.code, team: driver.team });
+    positions.push({ ...pose, key, gridPosition: slot ? position : null,
+      color: driver.color, code: driver.code, team: driver.team });
   }
   for (const [key, driver] of [["a", a], ["b", b]]) {
     const pin = $(`marker-${key}`);

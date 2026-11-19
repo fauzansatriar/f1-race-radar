@@ -244,6 +244,12 @@ function drawCircuitScene(cars, openingGrid) {
   drawCircuitGridLabels(ctx, grid.slots, width, height, project);
 }
 
+const circuitTeamCodes = {
+  alpine: "ALP", astonmartin: "AMR", audi: "AUD", cadillac: "CAD",
+  ferrari: "FER", haasf1team: "HAA", mclaren: "MCL", mercedes: "MER",
+  racingbulls: "RB", redbullracing: "RBR", williams: "WIL",
+};
+
 function drawCircuitStartOverview(ctx, width, height, grid, cars, units) {
   const first = grid.slots[0], last = grid.slots.at(-1);
   const dx = first.x - last.x, dy = first.y - last.y;
@@ -274,7 +280,12 @@ function drawCircuitStartOverview(ctx, width, height, grid, cars, units) {
   for (const { corners, color } of grid.markings) polygon(corners.map((point) => project(...point)), color);
   for (const car of cars) drawCircuitCar(ctx, project, car.x, car.y, car.heading, car.color, units);
 
-  ctx.font = `bold ${Math.min(14, Math.max(10, Math.floor((width - 56) / 30)))}px system-ui, sans-serif`;
+  const entrants = new Map(cars.map((car) => [car.gridPosition, car]));
+  const positionSize = Math.min(14, Math.max(9, Math.floor(width / 42)));
+  const detailSize = Math.min(11, Math.max(8, positionSize - 2));
+  const positionFont = `700 ${positionSize}px "Formula One", Arial, sans-serif`;
+  const detailFont = `700 ${detailSize}px "Formula One", Arial, sans-serif`;
+  const lineHeight = detailSize + 3;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.strokeStyle = "#8195a3";
@@ -285,13 +296,22 @@ function drawCircuitStartOverview(ctx, width, height, grid, cars, units) {
     const column = Math.floor(index / 2);
     const columns = Math.ceil((grid.slots.length - row) / 2);
     const labelX = width - 24 - column * (width - 48) / Math.max(1, columns - 1);
-    const labelY = centre + (row ? -1 : 1) * Math.min(74, height / 3);
+    const labelY = centre + (row ? -1 : 1) * Math.min(74, height / 3) - (row ? 2 * lineHeight : 0);
+    const labelWidth = Math.min(44, (width - 48) / Math.max(1, columns - 1) - 4);
+    const car = entrants.get(index + 1);
+    const teamKey = car?.team?.toLowerCase().replace(/[^a-z0-9]/g, "");
+    const team = circuitTeamCodes[teamKey] ?? car?.team?.slice(0, 3).toUpperCase();
     ctx.beginPath();
     ctx.moveTo(x, y);
-    ctx.lineTo(labelX, labelY + (row ? 9 : -9));
+    ctx.lineTo(labelX, labelY + (row ? 2 * lineHeight + 8 : -8));
     ctx.stroke();
+    ctx.font = positionFont;
     ctx.fillStyle = "#fff";
-    ctx.fillText(slot.label, labelX, labelY);
+    ctx.fillText(slot.label, labelX, labelY, labelWidth);
+    ctx.font = detailFont;
+    ctx.fillStyle = "#d9e4eb";
+    ctx.fillText(car?.code ?? "EMPTY", labelX, labelY + lineHeight, labelWidth);
+    if (team) ctx.fillText(team, labelX, labelY + 2 * lineHeight, labelWidth);
   }
 }
 
@@ -464,7 +484,7 @@ function circuitGrid(route, units) {
 
 function drawCircuitGridLabels(ctx, slots, width, height, project) {
   ctx.save();
-  ctx.font = "bold 12px system-ui, sans-serif";
+  ctx.font = '700 12px "Formula One", Arial, sans-serif';
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.lineJoin = "round";
