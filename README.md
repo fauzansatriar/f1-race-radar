@@ -8,79 +8,17 @@
 
 ## Latest update
 
-**19 November 2026 · Jolpica race calendar**
+**19 November 2026**
 
-- Jolpica supplies the season calendar, completed race list, classifications and driver standings. A bundled calendar keeps upcoming races visible when Jolpica is unavailable. OpenF1 classifications are used to open archived replays if Jolpica results cannot be loaded. OpenF1 remains the source for replay timing, telemetry and GPS. Live timing comes from the Formula 1 public feed or the configured OpenF1 relay.
-
-
-**19 November 2026 · Estimasi Live**
-
-- On GitHub Pages, desktop Circuit View can use anonymous Formula 1 timing and gaps to estimate car positions. The `Estimasi Live` label identifies the estimated Overview, Follow and Cockpit views.
-- The Las Vegas circuit map is bundled from [MultiViewer](https://api.multiviewer.app/api/v1/circuits/152/2026). Other supported circuits are loaded by circuit key and season. If a map is unavailable, the public timing panels still work.
-- The estimate uses the leader’s lap clock, recent lap pace and reported gaps. Car placement, racing lines and pit movement can differ from the real race. An available relay GPS trace takes precedence.
-
-
-**19 November 2026 · Starting grids across circuits and live races**
-
-- Desktop Circuit View uses the same numbered starting grid, driver codes and team-logo badges across circuits. It uses published grid positions when available and draws a schematic grid when the circuit trace is unavailable.
-- Live Circuit View shows GPS-equipped cars when the OpenF1 relay supplies positions and a circuit trace can be built. GitHub Pages uses the public timing feed, which does not include GPS or official starting-grid rows. The relay must run the latest server code to forward those rows.
-
-
-**19 November 2026 · Spline car and 22-place starting grid**
-
-- Desktop Circuit View uses the same 2026-inspired 3D car mesh created in Spline, with team colors and metre-scale dimensions. Both drivers follow the replay GPS clock and heading.
-- Circuit View shows 22 staggered grid slots. At the start of a replay, cars with recorded starting positions occupy the matching slots. During playback, their movement follows GPS.
-
-**19 November 2026 · GPS starting positions**
-
-- The cockpit grid uses stationary pre-start GPS samples when available. The replay opens on the same recorded positions.
-
-**19 November 2026 · Grounded starting grid**
-
-- Cockpit grid markings follow the GPS trace and are drawn on the road surface.
-
-**19 November 2026 · Circuit continuity and 2026 car model**
-
-- The circuit ribbon uses a continuous smoothed trace. The bundled Interlagos replay adds FastF1-resampled coordinates aligned with OpenF1 car-data timestamps. Regenerate the aligned samples with `python align-fastf1.py` in an environment with FastF1 installed.
-- The 3D view has a lower body, narrower tyres, and a more defined halo and wings inspired by the 2026 cars.
-
-**19 November 2026 · Cockpit camera and race positions**
-
-- Either driver in the desktop duel can be followed with a low chase camera. The view shows illustrative starting grid markings and team badges with race positions above the scene.
-
-**19 November 2026 · Circuit zoom with shared GPS scale**
-
-- Zoom works in Overview and Follow. Track and cars share the same metre scale, and zoom leaves their GPS positions unchanged.
-
-**19 November 2026 · Circuit scale and team badges**
-
-- Circuit car models use an approximate 5.3 m length on the GPS scale. Follow mode zooms in and driver labels show official team logos.
-
-**19 November 2026 · Circuit follow camera and car models**
-
-- The desktop circuit shows team-colored car models oriented by GPS movement. Overview and Follow controls switch between the whole route and a closer view of either driver in the selected duel.
-
-- Circuit View projects the GPS-derived route into perspective and tracks the selected duel on the replay clock. Car markers appear when location samples are available.
-
-**19 November 2026 · Grand Prix picker**
-
-- The Grand Prix selector uses the same branded, keyboard-accessible list as the battle and lap pickers.
-
-**18 November 2026 · Smooth brake display and mobile telemetry**
-
-- The brake gauge and trace interpolate between timestamped on/off samples. The gauge label shows the recorded pedal state.
-- The mobile telemetry comparison includes the throttle and brake history bars for both drivers.
-- The isometric cover and screenshot gallery show the updated desktop and mobile radar.
-- The red FR mark appears in the browser tab and on the home screen when the PWA is installed. The browser tab and installed app use the name F1 Race Radar.
-- The radar uses a plain Lap Pace label, and the footer shows timing and connection messages without a provider credit or sync confirmation.
-- The PWA is deployed over HTTPS on GitHub Pages and opens directly to 1v1 Radar when installed.
-- The app connects directly to the public F1 timing feed without an account or API key. During an active race, it shows the running order, gaps, lap count, and timing delay. It reconnects automatically after a dropped connection.
-- The GP picker lists upcoming races and completed 2026 replays. Replay still includes archived car telemetry, GPS, lap selection, and 1×–8× playback.
+- **Live race viewing.** When fresh timing confirms a race has started, the app opens its 1v1 Radar once per race while the page is open. You can then switch to Circuit View freely.
+- **Circuit View.** Drag or use the keyboard to explore the desktop Overview, or switch to either driver's Cockpit. The 3D cars have driver-code and team-logo pins, smoother steering and camera motion, and lighting that follows the circuit's local time.
+- **Starting grid and replays.** The opening grid shows all 22 slots, driver codes and team logos. Replay cars follow each driver's archived GPS, with denser Interlagos samples and lateral separation where the track has room.
+- **Data and fallbacks.** Jolpica supplies the calendar, results and standings. A bundled calendar keeps upcoming races visible during an outage, and OpenF1 can supply replay results. Public F1 timing powers Live, including labeled position estimates for Las Vegas.
 
 ## MVP features
 
 - **1v1 Radar** — Pick a battle between adjacent drivers and follow the time gap and estimated distance with driver portraits and team liveries.
-- **Live viewing** — See upcoming GPs in the selector. The default view follows an active race when fresh timing arrives. Selecting a different GP keeps that choice.
+- **Live viewing** — See upcoming GPs in the selector. Fresh timing opens 1v1 Radar when a race starts. After that, you can browse another view or race.
 - **Race replay** — Browse completed 2026 Grands Prix, starting with the latest available race. Jump to any lap or the finish, scrub the timeline, and switch between **1×, 2×, 4×, and 8×**.
 - **Synced telemetry** — Compare speed, throttle, braking, and gear. The radar interpolates car movement and readouts between recorded samples as playback speed changes.
 - **Race analysis** — See GPS positions on the circuit, race classification, lap pace, gap history, and sector deltas.
@@ -119,7 +57,7 @@ Open the [HTTPS app](https://fauzansatriar.github.io/f1-race-radar/) in Chrome o
 
 ## Live data
 
-The browser subscribes directly to the public Formula 1 timing feed during races. The public feed provides race order, gaps, and lap counts. Car sensors and GPS require a subscribed feed. The public app displays its timing-only status during live viewing. [Public timing reference](https://github.com/darshjoshi/pitwall#live-timing-lite--no-auth-reads-f1s-real-time-signalr-feed-during-a-session)
+The browser subscribes directly to the public Formula 1 timing feed during races. The public feed provides race order, gaps, and lap counts. Car sensors and GPS require a subscribed feed. For supported circuits, desktop Circuit View uses public timing to estimate car positions and labels the view `Estimasi Live`. [Public timing reference](https://github.com/darshjoshi/pitwall#live-timing-lite--no-auth-reads-f1s-real-time-signalr-feed-during-a-session)
 
 <details>
 <summary>Optional self-hosted OpenF1 relay</summary>
@@ -152,8 +90,9 @@ The server renews the OpenF1 token and relays timing, car telemetry, and GPS ove
 | Source | Data |
 | --- | --- |
 | [Formula 1 live timing](https://www.formula1.com/en/timing/f1-live) | Public race order, gaps, and lap count during a race |
-| [OpenF1](https://openf1.org/docs/) | Session schedule and archived timing, GPS, and car telemetry |
-| [Jolpica F1](https://api.jolpi.ca/docs/) | Race results and driver standings |
+| [OpenF1](https://openf1.org/docs/) | Replay session matching, archived timing, GPS, car telemetry and fallback race results |
+| [Jolpica F1](https://api.jolpi.ca/docs/) | Season calendar, race results and driver standings |
+| [MultiViewer](https://api.multiviewer.app/api/v1/circuits/152/2026) | Circuit outlines for estimated live positions |
 
 The bundled Brazilian GP snapshot includes race timing and selected telemetry windows. Additional races and telemetry load on demand, subject to upstream availability.
 
