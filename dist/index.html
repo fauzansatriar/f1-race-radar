@@ -1657,12 +1657,6 @@ function drawCircuitScene(cars, openingGrid) {
   drawCircuitGridLabels(ctx, grid.slots, width, height, project);
 }
 
-const circuitTeamCodes = {
-  alpine: "ALP", astonmartin: "AMR", audi: "AUD", cadillac: "CAD",
-  ferrari: "FER", haasf1team: "HAA", mclaren: "MCL", mercedes: "MER",
-  racingbulls: "RB", redbullracing: "RBR", williams: "WIL",
-};
-
 function drawCircuitStartOverview(ctx, width, height, grid, cars, units) {
   const first = grid.slots[0], last = grid.slots.at(-1);
   const dx = first.x - last.x, dy = first.y - last.y;
@@ -1712,11 +1706,12 @@ function drawCircuitStartOverview(ctx, width, height, grid, cars, units) {
     const labelY = centre + (row ? -1 : 1) * Math.min(74, height / 3) - (row ? 2 * lineHeight : 0);
     const labelWidth = Math.min(44, (width - 48) / Math.max(1, columns - 1) - 4);
     const car = entrants.get(index + 1);
-    const teamKey = car?.team?.toLowerCase().replace(/[^a-z0-9]/g, "");
-    const team = circuitTeamCodes[teamKey] ?? car?.team?.slice(0, 3).toUpperCase();
+    const logo = car && circuitTeamLogo(car.team);
+    const badgeWidth = Math.min(32, labelWidth);
+    const badgeHeight = detailSize + 8;
     ctx.beginPath();
     ctx.moveTo(x, y);
-    ctx.lineTo(labelX, labelY + (row ? 2 * lineHeight + 8 : -8));
+    ctx.lineTo(labelX, labelY + (row ? 2 * lineHeight + badgeHeight / 2 + 3 : -8));
     ctx.stroke();
     ctx.font = positionFont;
     ctx.fillStyle = "#fff";
@@ -1724,7 +1719,17 @@ function drawCircuitStartOverview(ctx, width, height, grid, cars, units) {
     ctx.font = detailFont;
     ctx.fillStyle = "#d9e4eb";
     ctx.fillText(car?.code ?? "EMPTY", labelX, labelY + lineHeight, labelWidth);
-    if (team) ctx.fillText(team, labelX, labelY + 2 * lineHeight, labelWidth);
+    if (logo) {
+      const badgeY = labelY + 2 * lineHeight;
+      ctx.beginPath();
+      ctx.roundRect(labelX - badgeWidth / 2, badgeY - badgeHeight / 2, badgeWidth, badgeHeight, 4);
+      ctx.fillStyle = car.color;
+      ctx.fill();
+      const logoScale = Math.min((badgeWidth - 6) / logo.naturalWidth, (badgeHeight - 4) / logo.naturalHeight);
+      const logoWidth = logo.naturalWidth * logoScale;
+      const logoHeight = logo.naturalHeight * logoScale;
+      ctx.drawImage(logo, labelX - logoWidth / 2, badgeY - logoHeight / 2, logoWidth, logoHeight);
+    }
   }
 }
 
