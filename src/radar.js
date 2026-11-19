@@ -275,7 +275,7 @@ function syncClock() {
 }
 
 function render() {
-  const waiting = race.live && !race.started;
+  const waiting = race.live === true && !race.started;
   const showWaitingGrid = waiting && !mobileLayout.matches && document.body.dataset.view === "circuit";
   document.querySelector(".dashboard").hidden = waiting && !showWaitingGrid;
   document.body.toggleAttribute("data-circuit-waiting", showWaitingGrid);
