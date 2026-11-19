@@ -1,11 +1,35 @@
+let circuitCamera = "overview";
+
+function circuitHeading(samples, time) {
+  const from = interpolateSample(samples, time - 400, LOCATION, 3500, 1800);
+  const to = interpolateSample(samples, time + 400, LOCATION, 3500, 1800);
+  if (!from || !to) return null;
+  const dx = to[2] - from[2], dy = to[1] - from[1];
+  return Math.hypot(dx, dy) > 0 ? Math.atan2(dy, dx) : null;
+}
+
 function drawCircuitScene(cars) {
   const canvas = $("circuit-scene");
   const visible = !mobileLayout.matches && document.body.dataset.view === "circuit";
   canvas.hidden = !visible;
   const status = $("circuit-scene-status");
   status.hidden = !visible || Boolean(race.shape && cars.length === 2);
+  const controls = $("circuit-camera");
+  controls.hidden = !visible;
   if (!visible) return;
+  for (const button of controls.querySelectorAll("button")) {
+    const key = button.dataset.camera;
+    const driver = state.battle?.[key];
+    if (key !== "overview") {
+      button.disabled = !driver;
+      const label = driver ? `Follow ${driver.code}` : `Follow ${key.toUpperCase()}`;
+      if (button.textContent !== label) button.textContent = label;
+    }
+    button.setAttribute("aria-pressed", String(key === circuitCamera));
+  }
+  const followed = cars.find((car) => car.key === circuitCamera);
   text("circuit-scene-status", !race.shape ? "Circuit GPS trace unavailable"
+    : circuitCamera !== "overview" && !followed ? "Follow camera waiting for GPS"
     : cars.length ? "One driver has no GPS sample here" : "Driver GPS samples unavailable here");
 
   const { width, height } = canvas.getBoundingClientRect();
@@ -18,13 +42,13 @@ function drawCircuitScene(cars) {
     canvas.height = h;
   }
   ctx.setTransform(density, 0, 0, density, 0, 0);
-  const scale = Math.min(width / 345, height / 167);
+  const scale = Math.min(width / 345, height / 167) * (followed ? 2.25 : 1);
   // Map the GPS plane into a pitched camera. The depth below the track is decorative.
   const project = (x, y, elevation = 0) => {
-    const dx = x - 210, dy = y - 111;
+    const dx = x - (followed?.x ?? 210), dy = y - (followed?.y ?? 111);
     const across = dx * .985 + dy * .174;
     const depth = dy * .985 - dx * .174;
-    const perspective = 1 / (1 - depth / 440);
+    const perspective = 1 / Math.max(.48, 1 - depth / 440);
     return [width / 2 + across * perspective * scale,
       height * .51 + (depth * .46 - elevation) * perspective * scale];
   };
@@ -63,15 +87,12 @@ function drawCircuitScene(cars) {
     ctx.lineWidth = weight;
     ctx.stroke();
   }
-  cars.forEach(({ x, y, color, code }, index) => {
+  cars.forEach(({ x, y, color, code, heading }, index) => {
     const [px, py] = project(x, y);
     if (px < 0 || px > width || py < 0 || py > height) return;
     const labelY = Math.max(16, py - 21 - index * 24);
     const labelX = Math.max(29, Math.min(width - 29, px + (index ? 26 : -26)));
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.arc(px, py, 5, 0, Math.PI * 2);
-    ctx.fill();
+    drawCircuitCar(ctx, project, x, y, heading, color, followed ? .78 : 1);
     ctx.strokeStyle = color;
     ctx.lineWidth = 1.5;
     ctx.beginPath();
@@ -81,9 +102,42 @@ function drawCircuitScene(cars) {
     ctx.fillStyle = "#111820";
     ctx.fillRect(labelX - 26, labelY - 11, 52, 22);
     ctx.fillStyle = "#f4f7fa";
-    ctx.font = '700 11px "Formula1", sans-serif';
+    ctx.font = `700 11px ${getComputedStyle(document.body).getPropertyValue("--font")}`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(code, labelX, labelY, 46);
   });
+}
+
+function drawCircuitCar(ctx, project, x, y, heading, color, size) {
+  const forwardX = Math.cos(heading ?? 0) * size;
+  const forwardY = Math.sin(heading ?? 0) * size;
+  function polygon(points, z, fill) {
+    ctx.beginPath();
+    points.forEach(([length, lateral], i) => {
+      const point = project(x + length * forwardX - lateral * forwardY,
+        y + length * forwardY + lateral * forwardX, z * size);
+      if (i) ctx.lineTo(...point);
+      else ctx.moveTo(...point);
+    });
+    ctx.closePath();
+    ctx.fillStyle = fill;
+    ctx.fill();
+  }
+  function box(front, rear, left, right, z, fill) {
+    polygon([[front, left], [rear, left], [rear, right], [front, right]], z, fill);
+  }
+  box(5.9, -5.7, -2.5, 2.5, .1, "#10141b");
+  for (const side of [-1, 1]) {
+    const left = Math.min(side * 1.5, side * 2.5);
+    const right = Math.max(side * 1.5, side * 2.5);
+    box(-2.65, -4.3, left, right, .85, "#171a20");
+    box(4.1, 2.45, left, right, .85, "#171a20");
+  }
+  polygon([[-4.8,-1.25], [-2,-1.65], [1.35,-1.65], [2.6,-.55], [5.6,-.37],
+    [5.6,.37], [2.6,.55], [1.35,1.65], [-2,1.65], [-4.8,1.25]], .85, color);
+  box(5.9, 4.55, -2.1, 2.1, .7, color);
+  box(-4.25, -5.15, -2.12, 2.12, 1.75, color);
+  box(.35, -1.22, -.64, .64, 1.25, "#151821");
+  box(-1.35, -2.3, -.48, .48, 1.4, "#dce5ee");
 }

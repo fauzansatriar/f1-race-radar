@@ -198,11 +198,14 @@ function updateMap(a, b, time) {
   const positions = [];
   for (const [key, driver] of [["a", a], ["b", b]]) {
     const pin = $(`marker-${key}`);
-    const point = interpolateSample(mediaSamples(driver, "locations"), time, LOCATION, 3500, 8000);
+    const samples = mediaSamples(driver, "locations");
+    const point = interpolateSample(samples, time, LOCATION, 3500, 8000);
     pin.style.display = point && race.shape ? "" : "none";
     if (!point || !race.shape) continue;
     const [x, y] = mapPoint(point, race.shape.transform);
-    positions.push({ x, y, color: driver.color, code: driver.code });
+    if (!mobileLayout.matches && document.body.dataset.view === "circuit") {
+      positions.push({ key, x, y, heading: circuitHeading(samples, time), color: driver.color, code: driver.code });
+    }
     pin.style.transform = `translate(${x}px,${y}px)`;
     const offset = key === "a" && x > 79 || x > 338 ? -71 : 7;
     const vertical = y < 31 ? 6 : key === "a" ? -13 : -27;
@@ -896,6 +899,12 @@ window.addEventListener("hashchange", () => {
 mobileLayout.addEventListener("change", () => { layoutReplayControls(); render(); });
 layoutReplayControls();
 initializeRacePickers();
+$("circuit-camera").addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-camera]");
+  if (!button || button.disabled) return;
+  circuitCamera = button.dataset.camera;
+  if (state.battle) renderMotion(true);
+});
 document.addEventListener("visibilitychange", () => {
   state.lastFrame = null;
   if (document.hidden) stopLiveClock();

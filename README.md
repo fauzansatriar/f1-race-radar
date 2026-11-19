@@ -8,7 +8,9 @@
 
 ## Latest update
 
-**19 November 2026 · Desktop circuit perspective**
+**19 November 2026 · Circuit follow camera and car models**
+
+- The desktop circuit shows team-colored car models oriented by GPS movement. Overview and Follow controls switch between the whole route and a closer view of either driver in the selected duel.
 
 - Circuit View projects the GPS-derived route into perspective and tracks the selected duel on the replay clock. Car markers appear when location samples are available.
 

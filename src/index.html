@@ -131,7 +131,14 @@
     <div class="lower">
       <div class="map-slot" id="map-slot">
         <section class="circuit panel" id="circuit-panel" aria-labelledby="circuit-title">
-          <h2 id="circuit-title">Circuit GPS</h2>
+          <div class="circuit-heading">
+            <h2 id="circuit-title">Circuit GPS</h2>
+            <div id="circuit-camera" class="circuit-camera" role="group" aria-label="Circuit camera" hidden>
+              <button type="button" data-camera="overview" aria-pressed="true">Overview</button>
+              <button type="button" data-camera="a" aria-pressed="false" disabled>Follow A</button>
+              <button type="button" data-camera="b" aria-pressed="false" disabled>Follow B</button>
+            </div>
+          </div>
           <div class="circuit-plot">
             <canvas id="circuit-scene" role="img" aria-label="Perspective circuit map with both drivers' recorded positions" hidden></canvas>
             <p id="circuit-scene-status" class="circuit-scene-status" hidden></p>
