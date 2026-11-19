@@ -199,7 +199,7 @@ function updateMap(a, b, time) {
   for (const [key, driver] of [["a", a], ["b", b]]) {
     const pin = $(`marker-${key}`);
     const samples = mediaSamples(driver, "locations");
-    const point = interpolateSample(samples, time, LOCATION, 3500, 8000);
+    const point = circuitLocation(samples, time);
     pin.style.display = point && race.shape ? "" : "none";
     if (!point || !race.shape) continue;
     const [x, y] = mapPoint(point, race.shape.transform);

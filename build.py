@@ -40,6 +40,13 @@ font_css = [
 ]
 portraits = {code: asset(root / 'portraits' / f'{key}.png', 'image/png') for code, key in codes.items()}
 cache = json.loads((root / 'race-cache.json').read_text(encoding='utf-8'))
+aligned = json.loads((root / 'fastf1-locations.json').read_text(encoding='utf-8'))
+if aligned['session'] == cache['session']:
+    for number, samples in aligned['drivers'].items():
+        if number in cache['participants']:
+            locations = cache['participants'][number]['locations']
+            locations.extend(samples)
+            locations.sort(key=lambda row: row[0])
 for driver in cache['participants'].values():
     for sample in driver['telemetry']:
         if sample[3] not in (0, 100):

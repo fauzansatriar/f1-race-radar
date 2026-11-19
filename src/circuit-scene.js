@@ -26,9 +26,53 @@ function circuitTeamLogo(team) {
   return image.complete && image.naturalWidth ? image : null;
 }
 
+const smoothCircuitRoutes = new WeakMap();
+
+function smoothCircuitRoute(points) {
+  if (smoothCircuitRoutes.has(points)) return smoothCircuitRoutes.get(points);
+  const count = points.length;
+  const smooth = points.flatMap((point, i) => {
+    const previous = points[(i + count - 1) % count];
+    const next = points[(i + 1) % count];
+    const after = points[(i + 2) % count];
+    const length = Math.hypot(next[0] - point[0], next[1] - point[1]);
+    if (length === 0) return [point];
+    const steps = Math.min(12, Math.max(2, Math.ceil(length / .9)));
+    return Array.from({ length: steps }, (_, step) =>
+      point.map((start, axis) => {
+        const end = next[axis], t = step / steps;
+        const a = clamp((end - previous[axis]) / 2, -length, length);
+        const b = clamp((after[axis] - start) / 2, -length, length);
+        return start + t * (a + t * (3 * (end - start) - 2 * a - b + t * (2 * (start - end) + a + b)));
+      }));
+  });
+  smoothCircuitRoutes.set(points, smooth);
+  return smooth;
+}
+
+function circuitLocation(samples, time, freshness = 8000) {
+  const frame = interpolateSample(samples, time, LOCATION, 3500, freshness);
+  if (!frame) return frame;
+  const index = sampleIndex(samples, time);
+  const before = samples[index - 2], a = samples[index - 1], b = samples[index], after = samples[index + 1];
+  if (!before || !a || !b || !after || frame === a ||
+      Math.max(a[0] - before[0], b[0] - a[0], after[0] - b[0]) > 3500) return frame;
+  const span = b[0] - a[0], t = (time - a[0]) / span;
+  for (const axis of LOCATION) {
+    const delta = b[axis] - a[axis];
+    if (!delta) continue;
+    // Limit the tangents to the sampled interval so a car cannot overshoot a stop.
+    const m0 = clamp((b[axis] - before[axis]) / (b[0] - before[0]) * span / delta, 0, 3);
+    const m1 = clamp((after[axis] - a[axis]) / (after[0] - a[0]) * span / delta, 0, 3);
+    const weight = clamp(t * (m0 + t * (3 - 2 * m0 - m1 + t * (m0 + m1 - 2))), 0, 1);
+    frame[axis] = a[axis] + delta * weight;
+  }
+  return frame;
+}
+
 function circuitHeading(samples, time) {
-  const from = interpolateSample(samples, time - 400, LOCATION, 3500, 1800);
-  const to = interpolateSample(samples, time + 400, LOCATION, 3500, 1800);
+  const from = circuitLocation(samples, time - 400, 1800);
+  const to = circuitLocation(samples, time + 400, 1800);
   if (!from || !to) return null;
   const dx = to[2] - from[2], dy = to[1] - from[1];
   return Math.hypot(dx, dy) > 0 ? Math.atan2(dy, dx) : null;
@@ -83,7 +127,7 @@ function drawCircuitScene(cars) {
   // normalized map units as the GPS trace before projecting either object.
   const unitsPerMetre = (race.shape?.transform[2] ?? 0) * 10;
   if (cockpitReady && unitsPerMetre && race.shape?.points.length) {
-    drawCircuitCockpit(ctx, width, height, followed, cars, race.shape.points, unitsPerMetre, zoom);
+    drawCircuitCockpit(ctx, width, height, followed, cars, smoothCircuitRoute(race.shape.points), unitsPerMetre, zoom);
     return;
   }
   const overviewScale = Math.min(width / 345, height / 167);
@@ -124,7 +168,7 @@ function drawCircuitScene(cars) {
     ctx.stroke();
   }
   if (!race.shape?.points.length) return;
-  const route = race.shape.points;
+  const route = smoothCircuitRoute(race.shape.points);
   const crossSections = route.map(([x, y], index) => {
     const before = route[(index + route.length - 1) % route.length];
     const after = route[(index + 1) % route.length];
@@ -195,7 +239,7 @@ function drawCircuitCockpit(ctx, width, height, driver, cars, route, units, zoom
     return [(dy * cos - dx * sin), eyeHeight - elevation / units, dx * cos + dy * sin + chase];
   };
   const screen = ([x, y, depth]) => [width / 2 + x * focal / depth, horizon + y * focal / depth];
-  const polygon = (points, color) => {
+  const polygon = (points, color, append = false) => {
     const clipped = [];
     let previous = points.at(-1);
     for (const current of points) {
@@ -207,14 +251,16 @@ function drawCircuitCockpit(ctx, width, height, driver, cars, route, units, zoom
       previous = current;
     }
     if (clipped.length < 3) return;
-    ctx.beginPath();
+    if (!append) ctx.beginPath();
     clipped.forEach((point, index) => {
       if (index) ctx.lineTo(...screen(point));
       else ctx.moveTo(...screen(point));
     });
     ctx.closePath();
-    ctx.fillStyle = color;
-    ctx.fill();
+    if (!append) {
+      ctx.fillStyle = color;
+      ctx.fill();
+    }
   };
   const sky = ctx.createLinearGradient(0, 0, 0, horizon);
   sky.addColorStop(0, "#24445d");
@@ -234,10 +280,11 @@ function drawCircuitCockpit(ctx, width, height, driver, cars, route, units, zoom
   const segments = sections.map((section, i) => [section, sections[(i + 1) % sections.length]])
     .filter(([a, b]) => Math.max(a.z, b.z) >= near && Math.min(a.z, b.z) < 450)
     .sort(([a, b], [c, d]) => c.z + d.z - a.z - b.z);
-  for (const [a, b] of segments) {
-    for (const [edge, ink] of [[7, "#52636a"], [6, "#d1d9df"], [5.83, "#313942"]]) {
-      polygon([a.edge(-edge), a.edge(edge), b.edge(edge), b.edge(-edge)], ink);
-    }
+  for (const [edge, ink] of [[7, "#52636a"], [6, "#d1d9df"], [5.83, "#313942"]]) {
+    ctx.beginPath();
+    for (const [a, b] of segments) polygon([a.edge(-edge), a.edge(edge), b.edge(edge), b.edge(-edge)], ink, true);
+    ctx.fillStyle = ink;
+    ctx.fill();
   }
   const start = route[0], next = route[1];
   const dx = next[0] - start[0], dy = next[1] - start[1];
@@ -267,9 +314,9 @@ function drawCircuitCar(ctx, project, x, y, heading, color, size) {
   const forwardY = Math.sin(heading ?? 0) * size;
   function polygon(points, z, fill) {
     ctx.beginPath();
-    points.forEach(([length, lateral], i) => {
+    points.forEach(([length, lateral, elevation = z], i) => {
       const point = project(x + length * forwardX - lateral * forwardY,
-        y + length * forwardY + lateral * forwardX, z * size);
+        y + length * forwardY + lateral * forwardX, elevation * size);
       if (i) ctx.lineTo(...point);
       else ctx.moveTo(...point);
     });
@@ -277,20 +324,36 @@ function drawCircuitCar(ctx, project, x, y, heading, color, size) {
     ctx.fillStyle = fill;
     ctx.fill();
   }
+  function tyre(center, lateral) {
+    const footprint = Array.from({ length: 10 }, (_, i) => {
+      const angle = i * Math.PI / 5;
+      return [center + Math.cos(angle) * .83, lateral + Math.sin(angle) * .53];
+    });
+    polygon(footprint, .25, "#080b10");
+    polygon(footprint, .85, "#20252d");
+    box(center + .28, center - .28, lateral - .49, lateral + .49, .92, "#353d48");
+  }
   function box(front, rear, left, right, z, fill) {
     polygon([[front, left], [rear, left], [rear, right], [front, right]], z, fill);
   }
   box(5.9, -5.7, -2.5, 2.5, .1, "#10141b");
   for (const side of [-1, 1]) {
-    const left = Math.min(side * 1.5, side * 2.5);
-    const right = Math.max(side * 1.5, side * 2.5);
-    box(-2.65, -4.3, left, right, .85, "#171a20");
-    box(4.1, 2.45, left, right, .85, "#171a20");
+    tyre(-3.6, side * 1.55);
+    tyre(3.85, side * 1.55);
   }
-  polygon([[-4.8,-1.25], [-2,-1.65], [1.35,-1.65], [2.6,-.55], [5.6,-.37],
-    [5.6,.37], [2.6,.55], [1.35,1.65], [-2,1.65], [-4.8,1.25]], .85, color);
+  box(2.1, -3.8, -1.48, 1.48, .62, "#242c37");
+  const body = [[-4.8, -1.25], [-2, -1.65], [1.35, -1.65], [2.6, -.55], [5.6, -.37],
+    [5.6, .37], [2.6, .55], [1.35, 1.65], [-2, 1.65], [-4.8, 1.25]];
+  for (let i = 0; i < body.length; i++) {
+    const current = body[i], next = body[(i + 1) % body.length];
+    polygon([[...current, .35], [...next, .35], [...next, .85], [...current, .85]], .85, color);
+  }
+  polygon(body, .85, color);
   box(5.9, 4.55, -2.1, 2.1, .7, color);
   box(-4.25, -5.15, -2.12, 2.12, 1.75, color);
-  box(.35, -1.22, -.64, .64, 1.25, "#151821");
+  box(2.25, -3.6, -.47, .47, 1.12, color);
+  box(.35, -1.22, -.64, .64, 1.34, "#151821");
+  box(.62, .28, -.72, .72, 1.6, "#dce5ee");
+  box(-2.05, -3.8, -.28, .28, 1.45, color);
   box(-1.35, -2.3, -.48, .48, 1.4, "#dce5ee");
 }
