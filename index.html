@@ -2710,6 +2710,7 @@ function connectPublicTiming() {
 const LIVE_BUFFER_MS = 2300;
 const LIVE_STALE_MS = 12_000;
 const scheduledRaces = new Map();
+const openedLiveRadar = new Set();
 const liveFeed = {
   recording: null, connected: false, source: null, mode: null, frame: null, lastFrame: null,
   lastRender: -Infinity, lastChart: -Infinity, lastStatus: -Infinity,
@@ -2954,6 +2955,18 @@ function viewLive(recording) {
   startLiveClock();
 }
 
+function openLiveRadar(recording) {
+  if (openedLiveRadar.has(recording.session)) return false;
+  openedLiveRadar.add(recording.session);
+  if (location.hash !== "#radar") {
+    history.replaceState(history.state, "", "#radar");
+    updateView();
+  }
+  if (race === recording) render();
+  else viewLive(recording);
+  return true;
+}
+
 function acceptLiveUpdate({ session, connected, rows, source = "openf1", lap = null, pace = null }) {
   const previous = liveFeed.recording;
   const previousPhase = livePhase(previous);
@@ -2983,9 +2996,9 @@ function acceptLiveUpdate({ session, connected, rows, source = "openf1", lap = n
   }
   const phase = livePhase(recording);
   if (recording !== previous || phase !== previousPhase) renderCatalog();
-  if (phase === "live" && liveFeed.connected && Date.now() - recording.receivedAt <= LIVE_STALE_MS &&
-      !state.changedRace && !state.raceRequest && state.timer === null) {
-    viewLive(recording);
+  if (phase === "live" && liveFeed.connected && Date.now() - recording.receivedAt <= LIVE_STALE_MS) {
+    const opened = openLiveRadar(recording);
+    if (!opened && !state.changedRace && !state.raceRequest && state.timer === null) viewLive(recording);
   }
   if (race === recording) {
     document.body.dataset.liveSource = source;
