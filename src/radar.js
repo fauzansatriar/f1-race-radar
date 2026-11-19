@@ -199,12 +199,15 @@ function updateMap(a, b, time) {
   for (const [key, driver] of [["a", a], ["b", b]]) {
     const pin = $(`marker-${key}`);
     const samples = mediaSamples(driver, "locations");
-    const point = circuitLocation(samples, time);
+    const gridSample = !race.live && time === race.start ? gridStartSample(samples, race.start) : null;
+    const point = gridSample ?? circuitLocation(samples, time);
     pin.style.display = point && race.shape ? "" : "none";
     if (!point || !race.shape) continue;
     const [x, y] = mapPoint(point, race.shape.transform);
     if (!mobileLayout.matches && document.body.dataset.view === "circuit") {
-      positions.push({ key, x, y, heading: circuitHeading(samples, time), color: driver.color, code: driver.code, team: driver.team });
+      const tangent = gridSample && circuitTrackTangent(smoothCircuitRoute(race.shape.points), x, y);
+      const heading = tangent?.heading ?? circuitHeading(samples, time);
+      positions.push({ key, x, y, heading, color: driver.color, code: driver.code, team: driver.team });
     }
     pin.style.transform = `translate(${x}px,${y}px)`;
     const offset = key === "a" && x > 79 || x > 338 ? -71 : 7;

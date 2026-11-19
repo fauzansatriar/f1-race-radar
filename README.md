@@ -8,6 +8,15 @@
 
 ## Latest update
 
+**19 November 2026 · Spline car and GPS starting grid**
+
+- Desktop Circuit View uses the same 2026-inspired 3D car mesh created in Spline, with team colors and metre-scale dimensions. Both drivers follow the replay GPS clock and heading.
+- When stationary pre-start GPS is available, the grid and the replay start use the recorded coordinates, preserving the distance between cars. Sessions without those samples show illustrative grid markings.
+
+**19 November 2026 · GPS starting positions**
+
+- The cockpit grid uses stationary pre-start GPS samples when available. The replay opens on the same recorded positions.
+
 **19 November 2026 · Grounded starting grid**
 
 - Cockpit grid markings follow the GPS trace and are drawn on the road surface.

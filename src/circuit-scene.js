@@ -7,6 +7,7 @@ function setCircuitZoom(step) {
   if (state.battle) renderMotion(true);
   else drawCircuitScene([]);
 }
+const circuitCarMesh = /*__CAR_2026_MESH__*/ [];
 const circuitTeamLogos = /*__TEAM_LOGOS__*/ {};
 const circuitLogoImages = new Map();
 
@@ -144,6 +145,7 @@ function drawCircuitScene(cars) {
     return [width / 2 + across * perspective * scale,
       height * .51 + (depth * .46 - elevation) * perspective * scale];
   };
+  project.depth = (x, y) => y * .985 - x * .174;
   const path = (points, elevation) => {
     ctx.beginPath();
     points.forEach(([x, y], index) => {
@@ -194,7 +196,7 @@ function drawCircuitScene(cars) {
     ctx.fill("evenodd");
   }
   for (const { x, y, heading, color } of cars) {
-    drawCircuitCar(ctx, project, x, y, heading, color, 5.3 * unitsPerMetre / 11.6);
+    drawCircuitCar(ctx, project, x, y, heading, color, unitsPerMetre);
   }
 }
 
@@ -212,20 +214,8 @@ function updateCircuitDuel() {
 }
 
 function drawCircuitCockpit(ctx, width, height, driver, cars, route, units, zoom) {
-  let heading = driver.heading;
-  if (!Number.isFinite(heading)) {
-    // A stationary starter has no GPS direction yet. Use the nearest trace tangent.
-    let distance = Infinity;
-    for (let i = 0; i < route.length; i++) {
-      const [x, y] = route[i];
-      const candidate = Math.hypot(x - driver.x, y - driver.y);
-      if (candidate >= distance) continue;
-      const [nextX, nextY] = route[(i + 1) % route.length];
-      if (nextX === x && nextY === y) continue;
-      heading = Math.atan2(nextY - y, nextX - x);
-      distance = candidate;
-    }
-  }
+  const tangent = Number.isFinite(driver.heading) ? null : circuitTrackTangent(route, driver.x, driver.y);
+  const heading = driver.heading ?? tangent?.heading;
   if (!Number.isFinite(heading)) return;
   const cos = Math.cos(heading), sin = Math.sin(heading);
   const focal = Math.min(width * .65, height * 1.23);
@@ -286,14 +276,69 @@ function drawCircuitCockpit(ctx, width, height, driver, cars, route, units, zoom
     ctx.fillStyle = ink;
     ctx.fill();
   }
-  for (const { corners, color } of circuitGrid(route, units)) {
+  for (const { corners, color } of recordedCircuitGrid(race, route, units)) {
     polygon(corners.map(([x, y]) => camera(x, y)), color);
   }
+  const projectCar = (x, y, z) => screen(camera(x, y, z));
+  projectCar.depth = (x, y) => -camera(x, y)[2];
   for (const car of [...cars].sort((a, b) => camera(b.x, b.y)[2] - camera(a.x, a.y)[2])) {
     if (camera(car.x, car.y)[2] < near + 3) continue;
-    drawCircuitCar(ctx, (x, y, z) => screen(camera(x, y, z)), car.x, car.y,
-      car.heading ?? heading, car.color, 5.3 * units / 11.6);
+    drawCircuitCar(ctx, projectCar, car.x, car.y, car.heading ?? heading, car.color, units);
   }
+}
+
+function gridStartSample(samples, start) {
+  const sample = recentSample(samples, start, 2500);
+  const prior = sample && recentSample(samples, sample[0] - 650, 1700);
+  return prior && Math.hypot(sample[1] - prior[1], sample[2] - prior[2]) <= 20 ? sample : null;
+}
+
+function circuitTrackTangent(route, x, y) {
+  let nearest = Infinity, direction;
+  for (let i = 0; i < route.length; i++) {
+    const [ax, ay] = route[i], [bx, by] = route[(i + 1) % route.length];
+    const dx = bx - ax, dy = by - ay, length = Math.hypot(dx, dy);
+    if (!length) continue;
+    const t = clamp(((x - ax) * dx + (y - ay) * dy) / (length * length), 0, 1);
+    const distance = Math.hypot(x - ax - t * dx, y - ay - t * dy);
+    if (distance >= nearest) continue;
+    nearest = distance;
+    direction = [dx / length, dy / length];
+  }
+  if (!direction) return null;
+  const [dx, dy] = direction;
+  return { dx, dy, distance: nearest, heading: Math.atan2(dy, dx) };
+}
+
+const recordedGridCache = new WeakMap();
+
+function recordedCircuitGrid(recording, route, units) {
+  if (recording.live) return circuitGrid(route, units);
+  const locations = mediaState(recording).get(0)?.locations;
+  const cached = recordedGridCache.get(recording);
+  if (cached?.route === route && (!locations || locations === cached.locations)) return cached.markings;
+
+  const markings = circuitGrid(route, units).slice(0, 1);
+  for (const driver of Object.values(recording.participants)) {
+    const sample = gridStartSample(locations?.[driver.number] ?? driver.locations, recording.start);
+    if (!sample) continue;
+    const [x, y] = mapPoint(sample, recording.shape.transform);
+    const tangent = circuitTrackTangent(route, x, y);
+    if (!tangent || tangent.distance > 4.4 * units) continue;
+    const { dx, dy } = tangent;
+    const point = (forward, side) => [x + (dx * forward - dy * side) * units,
+      y + (dy * forward + dx * side) * units];
+    const stripe = (rear, front, left, right) => {
+      markings.push({ corners: [point(rear, left), point(rear, right),
+        point(front, right), point(front, left)], color: "#edf1ef" });
+    };
+    stripe(2.8, 3, -1.08, 1.08);
+    stripe(1.15, 3, -1.08, -.90);
+    stripe(1.15, 3, .90, 1.08);
+  }
+  const rendered = markings.length > 1 ? markings : circuitGrid(route, units);
+  recordedGridCache.set(recording, { route, locations, markings: rendered });
+  return rendered;
 }
 
 const circuitGridCache = new WeakMap();
@@ -334,51 +379,48 @@ function circuitGrid(route, units) {
   return markings;
 }
 
-function drawCircuitCar(ctx, project, x, y, heading, color, size) {
-  const forwardX = Math.cos(heading ?? 0) * size;
-  const forwardY = Math.sin(heading ?? 0) * size;
-  function polygon(points, z, fill) {
+const circuitCarMaterials = {
+  carbon: "#292f37", metal: "#68737e", dark: "#141821", tyre: "#22262b",
+};
+
+const circuitCarFaces = circuitCarMesh.flatMap(({ ink, vertices, triangles }, part) =>
+  triangles.map(([a, b, c]) => {
+    const [ux, uy, uz] = vertices[b].map((value, i) => value - vertices[a][i]);
+    const [vx, vy, vz] = vertices[c].map((value, i) => value - vertices[a][i]);
+    const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+    const light = Math.abs(nx * .35 - ny * .45 + nz * .82) / (Math.hypot(nx, ny, nz) || 1);
+    return { part, a, b, c, ink, shade: Math.round((.56 + .44 * light) * 16) / 16 };
+  }));
+
+const circuitCarPalette = new Map();
+
+function drawCircuitCar(ctx, project, x, y, heading, color, units) {
+  const forwardX = Math.cos(heading ?? 0) * units;
+  const forwardY = Math.sin(heading ?? 0) * units;
+  const projected = circuitCarMesh.map(({ vertices }) => vertices.map(([length, lateral, height]) => {
+    const wx = x + length * forwardX - lateral * forwardY;
+    const wy = y + length * forwardY + lateral * forwardX;
+    return [...project(wx, wy, height * units), project.depth(wx, wy)];
+  }));
+  if (!circuitCarPalette.has(color)) {
+    circuitCarPalette.set(color, circuitCarFaces.map(({ ink, shade }) => {
+      const rgb = Number.parseInt((circuitCarMaterials[ink] ?? color).slice(1), 16);
+      return "rgb(" + [16, 8, 0].map(shift => Math.round(((rgb >> shift) & 255) * shade)).join(",") + ")";
+    }));
+  }
+  const palette = circuitCarPalette.get(color);
+  const faces = circuitCarFaces.map(({ part, a, b, c }, index) => {
+    const points = projected[part];
+    return { a: points[a], b: points[b], c: points[c], color: palette[index],
+      depth: points[a][2] + points[b][2] + points[c][2] };
+  }).sort((a, b) => a.depth - b.depth);
+  for (const { a, b, c, color } of faces) {
     ctx.beginPath();
-    points.forEach(([length, lateral, elevation = z], i) => {
-      const point = project(x + length * forwardX - lateral * forwardY,
-        y + length * forwardY + lateral * forwardX, elevation * size);
-      if (i) ctx.lineTo(...point);
-      else ctx.moveTo(...point);
-    });
+    ctx.moveTo(a[0], a[1]);
+    ctx.lineTo(b[0], b[1]);
+    ctx.lineTo(c[0], c[1]);
     ctx.closePath();
-    ctx.fillStyle = fill;
+    ctx.fillStyle = color;
     ctx.fill();
   }
-  function tyre(center, lateral) {
-    const footprint = Array.from({ length: 10 }, (_, i) => {
-      const angle = i * Math.PI / 5;
-      return [center + Math.cos(angle) * .83, lateral + Math.sin(angle) * .53];
-    });
-    polygon(footprint, .25, "#080b10");
-    polygon(footprint, .85, "#20252d");
-    box(center + .28, center - .28, lateral - .49, lateral + .49, .92, "#353d48");
-  }
-  function box(front, rear, left, right, z, fill) {
-    polygon([[front, left], [rear, left], [rear, right], [front, right]], z, fill);
-  }
-  box(5.9, -5.7, -2.5, 2.5, .1, "#10141b");
-  for (const side of [-1, 1]) {
-    tyre(-3.6, side * 1.55);
-    tyre(3.85, side * 1.55);
-  }
-  box(2.1, -3.8, -1.48, 1.48, .62, "#242c37");
-  const body = [[-4.8, -1.25], [-2, -1.65], [1.35, -1.65], [2.6, -.55], [5.6, -.37],
-    [5.6, .37], [2.6, .55], [1.35, 1.65], [-2, 1.65], [-4.8, 1.25]];
-  for (let i = 0; i < body.length; i++) {
-    const current = body[i], next = body[(i + 1) % body.length];
-    polygon([[...current, .35], [...next, .35], [...next, .85], [...current, .85]], .85, color);
-  }
-  polygon(body, .85, color);
-  box(5.9, 4.55, -2.1, 2.1, .7, color);
-  box(-4.25, -5.15, -2.12, 2.12, 1.75, color);
-  box(2.25, -3.6, -.47, .47, 1.12, color);
-  box(.35, -1.22, -.64, .64, 1.34, "#151821");
-  box(.62, .28, -.72, .72, 1.6, "#dce5ee");
-  box(-2.05, -3.8, -.28, .28, 1.45, color);
-  box(-1.35, -2.3, -.48, .48, 1.4, "#dce5ee");
 }
