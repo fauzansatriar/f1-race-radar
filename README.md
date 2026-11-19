@@ -8,6 +8,10 @@
 
 ## Latest update
 
+**19 November 2026 · Grounded starting grid**
+
+- Cockpit grid markings follow the GPS trace and are drawn on the road surface.
+
 **19 November 2026 · Circuit continuity and 2026 car model**
 
 - The circuit ribbon uses a continuous smoothed trace. The bundled Interlagos replay adds FastF1-resampled coordinates aligned with OpenF1 car-data timestamps. Regenerate the aligned samples with `python align-fastf1.py` in an environment with FastF1 installed.

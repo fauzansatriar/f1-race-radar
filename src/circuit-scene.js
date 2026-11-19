@@ -286,27 +286,52 @@ function drawCircuitCockpit(ctx, width, height, driver, cars, route, units, zoom
     ctx.fillStyle = ink;
     ctx.fill();
   }
-  const start = route[0], next = route[1];
-  const dx = next[0] - start[0], dy = next[1] - start[1];
-  const length = Math.hypot(dx, dy);
-  if (length > 0) {
-    const point = (back, side) => camera(start[0] + (-back * dx - side * dy) / length * units,
-      start[1] + (-back * dy + side * dx) / length * units, .02 * units);
-    polygon([point(0, -5.7), point(0, 5.7), point(.35, 5.7), point(.35, -5.7)], "#eef2f2");
-    // Illustrative grid slots aligned with the GPS finish straight.
-    for (let slot = 0; slot < 8; slot++) {
-      const back = 8 + slot * 8, side = slot % 2 ? 2.8 : -2.8;
-      polygon([point(back, side - 1.1), point(back, side + 1.1), point(back + .22, side + 1.1), point(back + .22, side - 1.1)], "#edf1ef");
-      for (const edge of [side - 1.1, side + .92]) {
-        polygon([point(back, edge), point(back + 2.4, edge), point(back + 2.4, edge + .18), point(back, edge + .18)], "#edf1ef");
-      }
-    }
+  for (const { corners, color } of circuitGrid(route, units)) {
+    polygon(corners.map(([x, y]) => camera(x, y)), color);
   }
   for (const car of [...cars].sort((a, b) => camera(b.x, b.y)[2] - camera(a.x, a.y)[2])) {
     if (camera(car.x, car.y)[2] < near + 3) continue;
     drawCircuitCar(ctx, (x, y, z) => screen(camera(x, y, z)), car.x, car.y,
       car.heading ?? heading, car.color, 5.3 * units / 11.6);
   }
+}
+
+const circuitGridCache = new WeakMap();
+
+function circuitGrid(route, units) {
+  const cached = circuitGridCache.get(route);
+  if (cached?.units === units) return cached.markings;
+  // Walk backwards from the start line so each slot follows the local road.
+  const series = [[0, ...route[0]]];
+  for (let i = route.length - 1; i > 0 && series.at(-1)[0] < 68; i--) {
+    const [distance, x, y] = series.at(-1);
+    const [nextX, nextY] = route[i];
+    const span = Math.hypot(nextX - x, nextY - y) / units;
+    if (span > 0) series.push([distance + span, nextX, nextY]);
+  }
+  const point = (metres, lateral) => {
+    const end = Math.min(series.length - 1, sampleIndex(series, metres));
+    const [d0, x0, y0] = series[end - 1];
+    const [d1, x1, y1] = series[end];
+    const t = (metres - d0) / (d1 - d0);
+    return [x0 + (x1 - x0) * t - (y1 - y0) * lateral / (d1 - d0),
+      y0 + (y1 - y0) * t + (x1 - x0) * lateral / (d1 - d0)];
+  };
+  const markings = [];
+  const paint = (back, length, left, right) => {
+    if (series.at(-1)[0] < back + length) return;
+    markings.push({ corners: [point(back, left), point(back, right),
+      point(back + length, right), point(back + length, left)], color: "#edf1ef" });
+  };
+  paint(0, .35, -5.25, 5.25);
+  for (let slot = 0; slot < 8; slot++) {
+    const back = 8 + slot * 8, side = slot % 2 ? 2.8 : -2.8;
+    paint(back, .22, side - 1.1, side + 1.1);
+    paint(back, 2.4, side - 1.1, side - .92);
+    paint(back, 2.4, side + .92, side + 1.1);
+  }
+  circuitGridCache.set(route, { units, markings });
+  return markings;
 }
 
 function drawCircuitCar(ctx, project, x, y, heading, color, size) {
