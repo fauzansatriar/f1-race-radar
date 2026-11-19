@@ -957,8 +957,6 @@ body[data-view="data"] .telemetry { display: none; }
             <h2 id="circuit-title">Circuit GPS</h2>
             <div id="circuit-camera" class="circuit-camera" role="group" aria-label="Circuit camera" hidden>
               <button type="button" data-camera="overview" aria-pressed="true">Overview</button>
-              <button type="button" data-camera="a" aria-pressed="false" disabled>Follow A</button>
-              <button type="button" data-camera="b" aria-pressed="false" disabled>Follow B</button>
               <button type="button" data-camera="cockpit-a" aria-pressed="false" disabled>Cockpit A</button>
               <button type="button" data-camera="cockpit-b" aria-pressed="false" disabled>Cockpit B</button>
               <div class="circuit-zoom" role="group" aria-label="Circuit zoom">
@@ -1618,7 +1616,7 @@ function drawCircuitScene(cars, openingGrid) {
     const driver = state.battle?.[key.replace("cockpit-", "")];
     if (key !== "overview") {
       button.disabled = !driver;
-      const label = `${key.startsWith("cockpit-") ? "Cockpit" : "Follow"} ${driver?.code ?? key.at(-1).toUpperCase()}`;
+      const label = `Cockpit ${driver?.code ?? key.at(-1).toUpperCase()}`;
       if (button.textContent !== label) button.textContent = label;
     }
     button.setAttribute("aria-pressed", String(key === circuitCamera));
@@ -1638,7 +1636,6 @@ function drawCircuitScene(cars, openingGrid) {
     : openingGrid?.schematic ? "Starting grid · circuit GPS trace unavailable"
     : !shape ? "Circuit GPS trace unavailable"
     : cockpit && !cockpitReady ? "Cockpit waiting for GPS"
-    : circuitCamera !== "overview" && !followed ? "Follow camera waiting for GPS"
     : cars.length ? "One driver has no GPS sample here" : "Driver GPS samples unavailable here");
 
   const { width, height } = canvas.getBoundingClientRect();
@@ -1662,16 +1659,12 @@ function drawCircuitScene(cars, openingGrid) {
     drawCircuitStartOverview(ctx, width, height, openingGrid, cars, openingGrid.units);
     return;
   }
-  const overviewScale = Math.min(width / 345, height / 167);
-  const baseScale = followed && unitsPerMetre
-    ? Math.max(overviewScale, Math.min(width / 220, height / 92) / unitsPerMetre)
-    : overviewScale;
-  const scale = baseScale * zoom;
+  const scale = Math.min(width / 345, height / 167) * zoom;
   const { yaw, pitch, panX, panY } = overview ? circuitOverview : defaultCircuitOverview;
   const cosine = Math.cos(yaw), sine = Math.sin(yaw);
   // Map the GPS plane into a pitched camera. The depth below the track is decorative.
   const project = (x, y, elevation = 0) => {
-    const dx = x - (followed?.x ?? 210), dy = y - (followed?.y ?? 111);
+    const dx = x - 210, dy = y - 111;
     const across = dx * cosine + dy * sine;
     const depth = dy * cosine - dx * sine;
     const perspective = 1 / Math.max(.48, 1 - depth / 440);
@@ -1754,7 +1747,7 @@ function drawCircuitScene(cars, openingGrid) {
       drawCircuitCar(ctx, project, x, y, heading, color, unitsPerMetre);
     }
   }
-  if (!overview) drawCircuitGridLabels(ctx, grid.slots, width, height, project);
+  drawCircuitDriverPins(ctx, [...orderedCars].reverse(), width, height, project, unitsPerMetre);
 }
 
 function drawCircuitStartOverview(ctx, width, height, grid, cars, units) {
@@ -1922,10 +1915,7 @@ function drawCircuitCockpit(ctx, width, height, driver, cars, route, units, zoom
   for (const { car } of visibleCars) {
     drawCircuitCar(ctx, projectCar, car.x, car.y, car.heading ?? heading, car.color, units);
   }
-  drawCircuitGridLabels(ctx, grid.slots, width, height, (x, y) => {
-    const point = camera(x, y);
-    return point[2] >= near ? screen(point) : null;
-  });
+  drawCircuitDriverPins(ctx, visibleCars.map(({ car }) => car).reverse(), width, height, projectCar, units);
 }
 
 function circuitTrackTangent(route, x, y) {
@@ -2010,26 +2000,43 @@ function circuitGrid(route, units) {
   return grid;
 }
 
-function drawCircuitGridLabels(ctx, slots, width, height, project) {
+function drawCircuitDriverPins(ctx, cars, width, height, project, units) {
   ctx.save();
-  ctx.font = '700 12px "Formula One", Arial, sans-serif';
-  ctx.textAlign = "center";
+  ctx.font = '700 10px "Formula One", Arial, sans-serif';
+  ctx.textAlign = "left";
   ctx.textBaseline = "middle";
-  ctx.lineJoin = "round";
-  ctx.lineWidth = 3;
-  ctx.strokeStyle = "#202830";
-  ctx.fillStyle = "#fff";
-  const painted = [];
-  for (const { label, labelAnchor } of slots) {
-    const point = project(...labelAnchor);
-    if (!point) continue;
-    const [x, y] = point;
-    const half = ctx.measureText(label).width / 2 + 2;
-    if (x < half || x > width - half || y < 8 || y > height - 8) continue;
-    if (painted.some(([px, py, extent]) => Math.abs(y - py) < 15 && Math.abs(x - px) < half + extent)) continue;
-    ctx.strokeText(label, x, y);
-    ctx.fillText(label, x, y);
-    painted.push([x, y, half]);
+  ctx.lineWidth = 1;
+  const occupied = [];
+  const priority = [...cars].sort((a, b) => Number(Boolean(b.key)) - Number(Boolean(a.key)));
+  for (const car of priority) {
+    const [x, y] = project(car.x, car.y, 1.2 * units);
+    if (!car.code || x < 0 || x > width || y < 22 || y > height) continue;
+    const logo = circuitTeamLogo(car.team);
+    const badgeWidth = ctx.measureText(car.code).width + (logo ? 27 : 12);
+    const left = clamp(x - badgeWidth / 2, 2, width - badgeWidth - 2);
+    const right = left + badgeWidth;
+    const top = [22, 42, 62].map((offset) => y - offset).find((candidate) => candidate >= 2
+      && !occupied.some(([px, py, end]) => Math.abs(candidate - py) < 20 && right + 3 > px && left - 3 < end));
+    if (top === undefined) continue;
+    occupied.push([left, top, right]);
+
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(clamp(x, left + 4, right - 4), top + 17);
+    ctx.strokeStyle = car.color;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.roundRect(left, top, badgeWidth, 17, 4);
+    ctx.fillStyle = "#111820";
+    ctx.fill();
+    ctx.stroke();
+    if (logo) {
+      const ratio = Math.min(13 / logo.naturalWidth, 11 / logo.naturalHeight);
+      const logoWidth = logo.naturalWidth * ratio, logoHeight = logo.naturalHeight * ratio;
+      ctx.drawImage(logo, left + 11 - logoWidth / 2, top + (17 - logoHeight) / 2, logoWidth, logoHeight);
+    }
+    ctx.fillStyle = "#fff";
+    ctx.fillText(car.code, left + (logo ? 21 : 6), top + 8.5);
   }
   ctx.restore();
 }
