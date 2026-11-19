@@ -204,7 +204,7 @@ function updateMap(a, b, time) {
     if (!point || !race.shape) continue;
     const [x, y] = mapPoint(point, race.shape.transform);
     if (!mobileLayout.matches && document.body.dataset.view === "circuit") {
-      positions.push({ key, x, y, heading: circuitHeading(samples, time), color: driver.color, code: driver.code });
+      positions.push({ key, x, y, heading: circuitHeading(samples, time), color: driver.color, code: driver.code, team: driver.team });
     }
     pin.style.transform = `translate(${x}px,${y}px)`;
     const offset = key === "a" && x > 79 || x > 338 ? -71 : 7;

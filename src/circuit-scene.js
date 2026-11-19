@@ -1,4 +1,22 @@
 let circuitCamera = "overview";
+const circuitTeamLogos = /*__TEAM_LOGOS__*/ {};
+const circuitLogoImages = new Map();
+
+function circuitTeamLogo(team) {
+  const key = team?.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const source = circuitTeamLogos[key];
+  if (!source) return null;
+  if (!circuitLogoImages.has(key)) {
+    const image = new Image();
+    image.addEventListener("load", () => {
+      if (!$("circuit-scene").hidden && state.battle) renderMotion();
+    });
+    image.src = source;
+    circuitLogoImages.set(key, image);
+  }
+  const image = circuitLogoImages.get(key);
+  return image.complete && image.naturalWidth ? image : null;
+}
 
 function circuitHeading(samples, time) {
   const from = interpolateSample(samples, time - 400, LOCATION, 3500, 1800);
@@ -42,7 +60,14 @@ function drawCircuitScene(cars) {
     canvas.height = h;
   }
   ctx.setTransform(density, 0, 0, density, 0, 0);
-  const scale = Math.min(width / 345, height / 167) * (followed ? 2.25 : 1);
+  // F1 location coordinates use decimetres. Convert metres into the same
+  // normalized map units as the GPS trace before projecting either object.
+  const unitsPerMetre = (race.shape?.transform[2] ?? 0) * 10;
+  const overviewScale = Math.min(width / 345, height / 167);
+  const scale = followed && unitsPerMetre
+    ? Math.max(overviewScale, Math.min(width / 220, height / 92) / unitsPerMetre)
+    : overviewScale;
+  const roadWidth = Math.max(1, 12 * unitsPerMetre * scale * .72);
   // Map the GPS plane into a pitched camera. The depth below the track is decorative.
   const project = (x, y, elevation = 0) => {
     const dx = x - (followed?.x ?? 210), dy = y - (followed?.y ?? 111);
@@ -78,21 +103,21 @@ function drawCircuitScene(cars) {
   if (!race.shape?.points.length) return;
   ctx.lineJoin = ctx.lineCap = "round";
   for (const [ink, weight, elevation] of [
-    ["#090d14", 16, -5], ["#354657", 14, -2],
+    ["#090d14", 16, -.65 * unitsPerMetre], ["#354657", 14, -.3 * unitsPerMetre],
     ["#bcc9d3", 10, 0], ["#27313b", 7, 0],
   ]) {
     path(race.shape.points, elevation);
     ctx.closePath();
     ctx.strokeStyle = ink;
-    ctx.lineWidth = weight;
+    ctx.lineWidth = weight * roadWidth / 10;
     ctx.stroke();
   }
-  cars.forEach(({ x, y, color, code, heading }, index) => {
+  cars.forEach(({ x, y, color, code, heading, team }, index) => {
     const [px, py] = project(x, y);
     if (px < 0 || px > width || py < 0 || py > height) return;
     const labelY = Math.max(16, py - 21 - index * 24);
-    const labelX = Math.max(29, Math.min(width - 29, px + (index ? 26 : -26)));
-    drawCircuitCar(ctx, project, x, y, heading, color, followed ? .78 : 1);
+    const labelX = Math.max(39, Math.min(width - 39, px + (index ? 36 : -36)));
+    drawCircuitCar(ctx, project, x, y, heading, color, 5.3 * unitsPerMetre / 11.6);
     ctx.strokeStyle = color;
     ctx.lineWidth = 1.5;
     ctx.beginPath();
@@ -100,12 +125,19 @@ function drawCircuitScene(cars) {
     ctx.lineTo(labelX, labelY);
     ctx.stroke();
     ctx.fillStyle = "#111820";
-    ctx.fillRect(labelX - 26, labelY - 11, 52, 22);
+    const logo = circuitTeamLogo(team);
+    const badgeWidth = logo ? 72 : 52;
+    ctx.fillRect(labelX - badgeWidth / 2, labelY - 12, badgeWidth, 24);
+    if (logo) {
+      const factor = Math.min(21 / logo.naturalWidth, 16 / logo.naturalHeight);
+      const logoWidth = logo.naturalWidth * factor, logoHeight = logo.naturalHeight * factor;
+      ctx.drawImage(logo, labelX - 21 - logoWidth / 2, labelY - logoHeight / 2, logoWidth, logoHeight);
+    }
     ctx.fillStyle = "#f4f7fa";
     ctx.font = `700 11px ${getComputedStyle(document.body).getPropertyValue("--font")}`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(code, labelX, labelY, 46);
+    ctx.fillText(code, labelX + (logo ? 10 : 0), labelY, 46);
   });
 }
 

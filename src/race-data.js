@@ -159,7 +159,7 @@ function circuitShape(points, start, length) {
 }
 
 function mapPoint(point, [x, y, scale]) {
-  return [+(210 + (point[2] - x) * scale).toFixed(1), +(111 - (-point[1] - y) * scale).toFixed(1)];
+  return [210 + (point[2] - x) * scale, 111 + (point[1] + y) * scale];
 }
 
 function packRace(session, official, input, window) {

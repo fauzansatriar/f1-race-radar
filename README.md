@@ -8,6 +8,10 @@
 
 ## Latest update
 
+**19 November 2026 · Circuit scale and team badges**
+
+- Circuit car models use an approximate 5.3 m length on the GPS scale. Follow mode zooms in and driver labels show official team logos.
+
 **19 November 2026 · Circuit follow camera and car models**
 
 - The desktop circuit shows team-colored car models oriented by GPS movement. Overview and Follow controls switch between the whole route and a closer view of either driver in the selected duel.

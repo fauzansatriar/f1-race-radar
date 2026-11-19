@@ -59,6 +59,8 @@ app = ('\n'.join(read(file) for file in (
 ))).replace('/*__PORTRAITS__*/ {}', inline_json(portraits))
 app = app.replace('/*__RACE_CACHE__*/ {}', inline_json(cache))
 app = app.replace('/*__CATALOG__*/ []', inline_json(catalog))
+team_logos = {file.stem: asset(file, 'image/webp') for file in sorted((root / 'team-logos').glob('*.webp'))}
+app = app.replace('/*__TEAM_LOGOS__*/ {}', inline_json(team_logos))
 template = read('index.html').replace('/*__STYLES__*/', css).replace('/*__LOGO__*/', logo)
 template = template.replace('/*__FAVICON__*/', favicon)
 template = template.replace('/*__DATA__*/', read('race-data.js'))
