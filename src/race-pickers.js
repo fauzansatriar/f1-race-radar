@@ -25,11 +25,11 @@ function initializeRacePickers() {
     trigger = button;
     const lapPicker = kind === "lap";
     dialog.dataset.kind = kind;
-    text("picker-title", lapPicker ? "Jump to lap" : "Race battles");
+    text("picker-title", lapPicker ? "Jump to lap" : kind === "gp" ? "Grand Prix" : "Race battles");
     list.classList.toggle("lap-options", lapPicker);
     list.innerHTML = lapPicker
       ? lapOptions(button.value)
-      : battleOptions(battlesAt(fieldAt(state.time)), button.value);
+      : kind === "gp" ? gpOptions() : battleOptions(battlesAt(fieldAt(state.time)), button.value);
     if (!list.children.length) return;
     button.setAttribute("aria-expanded", "true");
     dialog.showModal();
@@ -43,6 +43,7 @@ function initializeRacePickers() {
 
   $("battle-select").addEventListener("click", (event) => open(event.currentTarget, "battle"));
   $("lap-select").addEventListener("click", (event) => open(event.currentTarget, "lap"));
+  $("gp-button").addEventListener("click", (event) => open(event.currentTarget, "gp"));
   $("close-picker").addEventListener("click", () => dialog.close());
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog) dialog.close();
@@ -56,7 +57,11 @@ function initializeRacePickers() {
     const option = event.target.closest("[role=option]");
     if (!option || !trigger) return;
     const value = option.dataset.value;
-    const target = trigger;
+    const target = dialog.dataset.kind === "gp" ? $("gp-select") : trigger;
+    if (dialog.dataset.kind === "gp" && ![...target.options].some((race) => race.value === value)) {
+      dialog.close();
+      return;
+    }
     dialog.close();
     if (dialog.dataset.kind === "battle" && !battlesAt(fieldAt(state.time)).some((entry) => String(entry.b.number) === value)) return;
     target.value = value;
@@ -108,4 +113,10 @@ function lapOptions(selected) {
       Finish
     </button>`);
   return rows.join("");
+}
+
+function gpOptions() {
+  return [...$("gp-select").options].map((race) => `
+    <button class="picker-option picker-gp" type="button" role="option" tabindex="-1"
+      aria-selected="${race.selected}" data-value="${escapeHtml(race.value)}">${escapeHtml(race.text)}</button>`).join("");
 }

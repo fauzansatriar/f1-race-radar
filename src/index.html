@@ -37,10 +37,13 @@
         <button class="speed-option" type="button" data-speed="8" aria-pressed="true">8x</button>
       </div>
     </div>
-    <label class="gp-picker">
-      <span class="sr-only">Select a Grand Prix</span>
-      <select id="gp-select" aria-label="Select a Grand Prix"></select>
-    </label>
+    <div class="gp-picker">
+      <button id="gp-button" class="picker-trigger" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="race-picker">
+        <span id="gp-button-label">Select a Grand Prix</span>
+        <svg class="picker-chevron" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+      </button>
+      <select id="gp-select" hidden></select>
+    </div>
     <details class="mobile-more" id="mobile-more">
       <summary aria-label="More race views" title="More race views">
         <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">

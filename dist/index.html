@@ -451,7 +451,7 @@ body[data-view="data"] .telemetry { display: none; }
 
 
 .gp-picker { flex: 0 1 231px; min-width: 120px; }
-.gp-picker select {
+.gp-picker #gp-button {
   width: 100%;
   cursor: pointer;
   background-color: #22232b;
@@ -460,6 +460,8 @@ body[data-view="data"] .telemetry { display: none; }
   padding: 6px 7px;
   font-size: 11px;
 }
+#gp-button-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.picker-gp { text-align: left; overflow-wrap: anywhere; }
 .lap-picker { display: flex; align-items: center; gap: 7px; white-space: nowrap; font-size: 10px; color: var(--muted); }
 .replay-speeds { flex: none; }
 .mobile-more, .mobile-radar-title, .mobile-replay { display: none; }
@@ -510,8 +512,8 @@ body[data-view="data"] .telemetry { display: none; }
   .brand span { font-size: clamp(11px, 3.5vw, 15px); }
   .views, .desktop-only, .desktop-radar-title { display: none; }
   .gp-picker { grid-area: 1 / 2; min-width: 0; }
-  .gp-picker select { min-height: 44px; }
-  .gp-picker select { padding-inline: 7px 4px; font-size: 11px; text-overflow: ellipsis; }
+  .gp-picker #gp-button { min-height: 44px; }
+  .gp-picker #gp-button { padding-inline: 7px 4px; font-size: 11px; text-overflow: ellipsis; }
   .mobile-more { grid-area: 1 / 3; display: block; position: relative; }
   .mobile-more summary {
     display: grid;
@@ -829,10 +831,13 @@ body[data-view="data"] .telemetry { display: none; }
         <button class="speed-option" type="button" data-speed="8" aria-pressed="true">8x</button>
       </div>
     </div>
-    <label class="gp-picker">
-      <span class="sr-only">Select a Grand Prix</span>
-      <select id="gp-select" aria-label="Select a Grand Prix"></select>
-    </label>
+    <div class="gp-picker">
+      <button id="gp-button" class="picker-trigger" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="race-picker">
+        <span id="gp-button-label">Select a Grand Prix</span>
+        <svg class="picker-chevron" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+      </button>
+      <select id="gp-select" hidden></select>
+    </div>
     <details class="mobile-more" id="mobile-more">
       <summary aria-label="More race views" title="More race views">
         <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
@@ -1390,11 +1395,11 @@ function initializeRacePickers() {
     trigger = button;
     const lapPicker = kind === "lap";
     dialog.dataset.kind = kind;
-    text("picker-title", lapPicker ? "Jump to lap" : "Race battles");
+    text("picker-title", lapPicker ? "Jump to lap" : kind === "gp" ? "Grand Prix" : "Race battles");
     list.classList.toggle("lap-options", lapPicker);
     list.innerHTML = lapPicker
       ? lapOptions(button.value)
-      : battleOptions(battlesAt(fieldAt(state.time)), button.value);
+      : kind === "gp" ? gpOptions() : battleOptions(battlesAt(fieldAt(state.time)), button.value);
     if (!list.children.length) return;
     button.setAttribute("aria-expanded", "true");
     dialog.showModal();
@@ -1408,6 +1413,7 @@ function initializeRacePickers() {
 
   $("battle-select").addEventListener("click", (event) => open(event.currentTarget, "battle"));
   $("lap-select").addEventListener("click", (event) => open(event.currentTarget, "lap"));
+  $("gp-button").addEventListener("click", (event) => open(event.currentTarget, "gp"));
   $("close-picker").addEventListener("click", () => dialog.close());
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog) dialog.close();
@@ -1421,7 +1427,11 @@ function initializeRacePickers() {
     const option = event.target.closest("[role=option]");
     if (!option || !trigger) return;
     const value = option.dataset.value;
-    const target = trigger;
+    const target = dialog.dataset.kind === "gp" ? $("gp-select") : trigger;
+    if (dialog.dataset.kind === "gp" && ![...target.options].some((race) => race.value === value)) {
+      dialog.close();
+      return;
+    }
     dialog.close();
     if (dialog.dataset.kind === "battle" && !battlesAt(fieldAt(state.time)).some((entry) => String(entry.b.number) === value)) return;
     target.value = value;
@@ -1473,6 +1483,12 @@ function lapOptions(selected) {
       Finish
     </button>`);
   return rows.join("");
+}
+
+function gpOptions() {
+  return [...$("gp-select").options].map((race) => `
+    <button class="picker-option picker-gp" type="button" role="option" tabindex="-1"
+      aria-selected="${race.selected}" data-value="${escapeHtml(race.value)}">${escapeHtml(race.text)}</button>`).join("");
 }
 
 "use strict";
@@ -2483,7 +2499,7 @@ function renderRace() {
   document.body.dataset.timing = race.live ? "live" : "replay";
   document.body.dataset.liveSource = race.live ? race.source ?? "" : "";
   $("live-indicator").hidden = !race.live;
-  $("gp-select").value = race.live ? liveChoice(race) : race.official.round;
+  setGPSelection(race.live ? liveChoice(race) : race.official.round);
   text("lap-total", race.live ? "" : "/" + race.official.total);
   text("race-waiting-title", race.official.name);
   text("circuit-title", (race.circuit || race.official.circuit) + " · GPS");
@@ -2626,6 +2642,14 @@ function selectBattle(number) {
   render();
 }
 
+function setGPSelection(value) {
+  const picker = $("gp-select");
+  picker.value = value;
+  const label = picker.selectedOptions[0]?.text ?? "Select a Grand Prix";
+  text("gp-button-label", label);
+  $("gp-button").setAttribute("aria-label", `Select a Grand Prix. Currently ${label}`);
+}
+
 function renderCatalog() {
   const picker = $("gp-select");
   const selected = picker.value;
@@ -2643,7 +2667,7 @@ function renderCatalog() {
   }));
   const current = race.live ? liveChoice(race) : race.official.round;
   picker.replaceChildren(...options);
-  picker.value = state.raceRequest && options.some((option) => option.value === selected) ? selected : current;
+  setGPSelection(state.raceRequest && options.some((option) => option.value === selected) ? selected : current);
 }
 
 async function selectGP(round) {
@@ -2665,7 +2689,7 @@ async function selectGP(round) {
   const controller = new AbortController();
   state.raceRequest = controller;
   setPlayback(false);
-  $("gp-select").value = round;
+  setGPSelection(round);
   document.querySelector(".dashboard").setAttribute("aria-busy", "true");
   text("source-status", `Loading ${entry.name}…`);
   try {
@@ -2686,7 +2710,7 @@ async function selectGP(round) {
     text("source-status", "");
   } catch {
     if (!controller.signal.aborted) {
-      $("gp-select").value = race.live ? liveChoice(race) : race.official.round;
+      setGPSelection(race.live ? liveChoice(race) : race.official.round);
       text("source-status", `Couldn't load round ${round}. Select it to retry.`);
     }
   } finally {

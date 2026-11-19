@@ -434,7 +434,7 @@ body[data-view="data"] .telemetry { display: none; }
 
 
 .gp-picker { flex: 0 1 231px; min-width: 120px; }
-.gp-picker select {
+.gp-picker #gp-button {
   width: 100%;
   cursor: pointer;
   background-color: #22232b;
@@ -443,6 +443,8 @@ body[data-view="data"] .telemetry { display: none; }
   padding: 6px 7px;
   font-size: 11px;
 }
+#gp-button-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.picker-gp { text-align: left; overflow-wrap: anywhere; }
 .lap-picker { display: flex; align-items: center; gap: 7px; white-space: nowrap; font-size: 10px; color: var(--muted); }
 .replay-speeds { flex: none; }
 .mobile-more, .mobile-radar-title, .mobile-replay { display: none; }
@@ -493,8 +495,8 @@ body[data-view="data"] .telemetry { display: none; }
   .brand span { font-size: clamp(11px, 3.5vw, 15px); }
   .views, .desktop-only, .desktop-radar-title { display: none; }
   .gp-picker { grid-area: 1 / 2; min-width: 0; }
-  .gp-picker select { min-height: 44px; }
-  .gp-picker select { padding-inline: 7px 4px; font-size: 11px; text-overflow: ellipsis; }
+  .gp-picker #gp-button { min-height: 44px; }
+  .gp-picker #gp-button { padding-inline: 7px 4px; font-size: 11px; text-overflow: ellipsis; }
   .mobile-more { grid-area: 1 / 3; display: block; position: relative; }
   .mobile-more summary {
     display: grid;

@@ -533,7 +533,7 @@ function renderRace() {
   document.body.dataset.timing = race.live ? "live" : "replay";
   document.body.dataset.liveSource = race.live ? race.source ?? "" : "";
   $("live-indicator").hidden = !race.live;
-  $("gp-select").value = race.live ? liveChoice(race) : race.official.round;
+  setGPSelection(race.live ? liveChoice(race) : race.official.round);
   text("lap-total", race.live ? "" : "/" + race.official.total);
   text("race-waiting-title", race.official.name);
   text("circuit-title", (race.circuit || race.official.circuit) + " · GPS");
@@ -676,6 +676,14 @@ function selectBattle(number) {
   render();
 }
 
+function setGPSelection(value) {
+  const picker = $("gp-select");
+  picker.value = value;
+  const label = picker.selectedOptions[0]?.text ?? "Select a Grand Prix";
+  text("gp-button-label", label);
+  $("gp-button").setAttribute("aria-label", `Select a Grand Prix. Currently ${label}`);
+}
+
 function renderCatalog() {
   const picker = $("gp-select");
   const selected = picker.value;
@@ -693,7 +701,7 @@ function renderCatalog() {
   }));
   const current = race.live ? liveChoice(race) : race.official.round;
   picker.replaceChildren(...options);
-  picker.value = state.raceRequest && options.some((option) => option.value === selected) ? selected : current;
+  setGPSelection(state.raceRequest && options.some((option) => option.value === selected) ? selected : current);
 }
 
 async function selectGP(round) {
@@ -715,7 +723,7 @@ async function selectGP(round) {
   const controller = new AbortController();
   state.raceRequest = controller;
   setPlayback(false);
-  $("gp-select").value = round;
+  setGPSelection(round);
   document.querySelector(".dashboard").setAttribute("aria-busy", "true");
   text("source-status", `Loading ${entry.name}…`);
   try {
@@ -736,7 +744,7 @@ async function selectGP(round) {
     text("source-status", "");
   } catch {
     if (!controller.signal.aborted) {
-      $("gp-select").value = race.live ? liveChoice(race) : race.official.round;
+      setGPSelection(race.live ? liveChoice(race) : race.official.round);
       text("source-status", `Couldn't load round ${round}. Select it to retry.`);
     }
   } finally {

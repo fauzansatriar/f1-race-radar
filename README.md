@@ -8,6 +8,10 @@
 
 ## Latest update
 
+**19 November 2026 · Grand Prix picker**
+
+- The Grand Prix selector uses the same branded, keyboard-accessible list as the battle and lap pickers.
+
 **18 November 2026 · Smooth brake display and mobile telemetry**
 
 - The brake gauge and trace interpolate between timestamped on/off samples. The gauge label shows the recorded pedal state.
