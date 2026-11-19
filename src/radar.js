@@ -200,8 +200,7 @@ function updateMap(a, b, time) {
   const shape = race.shape;
   const opening = showCircuit && !race.live && time - race.start < CIRCUIT_LAUNCH_MS && shape?.points.length;
   const grid = opening ? circuitGrid(smoothCircuitRoute(shape.points), shape.transform[2] * 10) : null;
-  const showReplayField = showCircuit && shape && !race.live
-    && (circuitCamera === "overview" || circuitCamera.startsWith("cockpit-"));
+  const showReplayField = showCircuit && shape && !race.live;
   const drivers = grid?.slots.length ? fieldAt(race.start)
     : showReplayField ? fieldAt(time) : [];
   for (const { driver, position } of drivers) {

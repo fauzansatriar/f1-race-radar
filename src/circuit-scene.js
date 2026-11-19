@@ -224,9 +224,12 @@ function drawCircuitScene(cars, openingGrid) {
   }
   const orderedCars = [...cars].sort((a, b) => project.depth(a.x, a.y) - project.depth(b.x, b.y));
   const useMarkers = circuitCamera === "overview" && 5.25 * unitsPerMetre * scale < 7;
+  const carMargin = Math.max(5, 4 * unitsPerMetre * scale / .48);
   for (const { x, y, heading, color, key } of orderedCars) {
+    const [screenX, screenY] = project(x, y);
+    if (screenX < -carMargin || screenX > width + carMargin ||
+        screenY < -carMargin || screenY > height + carMargin) continue;
     if (useMarkers) {
-      const [screenX, screenY] = project(x, y);
       ctx.beginPath();
       ctx.arc(screenX, screenY, key ? 3.5 : 2.5, 0, 2 * Math.PI);
       ctx.fillStyle = color;
