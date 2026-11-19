@@ -572,6 +572,7 @@ function renderShape() {
 }
 
 function renderRace() {
+  resetCircuitMotion();
   resetCircuitOverview();
   $("race-picker").close();
   state.battle = null;
@@ -604,6 +605,7 @@ function renderRace() {
 }
 
 function setTime(time) {
+  resetCircuitMotion();
   state.time = clamp(time, race.start, race.end);
   render();
   queueMedia();
@@ -953,6 +955,7 @@ installCircuitOverviewControls($("circuit-scene"));
 $("circuit-camera").addEventListener("click", (event) => {
   const button = event.target.closest("button[data-camera]");
   if (!button || button.disabled) return;
+  if (circuitCamera !== button.dataset.camera) circuitMotion.chase = null;
   circuitCamera = button.dataset.camera;
   setCircuitZoom(circuitZoom);
 });
