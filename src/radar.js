@@ -194,29 +194,41 @@ function setBadges(a, b) {
   $("override").title = "Gear for the pursuing driver";
 }
 
+function circuitStartingField(recording) {
+  const order = recording.live ? recording.startingGrid
+    : Object.fromEntries(recording.official.results
+      .filter(({ grid }) => Number.isInteger(grid) && grid >= 0)
+      .map(({ number, grid }) => [number, grid]));
+  if (!Object.keys(order).length) return fieldAt(recording.start);
+  return Object.values(recording.participants)
+    .map((driver) => ({ driver, position: order[driver.number] }))
+    .filter(({ position }) => Number.isInteger(position) && position > 0);
+}
+
 function updateMap(a, b, time) {
   const positions = [];
   const showCircuit = !mobileLayout.matches && document.body.dataset.view === "circuit";
   const shape = race.shape;
-  const opening = showCircuit && !race.live && time - race.start < CIRCUIT_LAUNCH_MS && shape?.points.length;
-  const grid = opening ? circuitGrid(smoothCircuitRoute(shape.points), shape.transform[2] * 10) : null;
-  const showReplayField = showCircuit && shape && !race.live;
-  const drivers = grid?.slots.length ? fieldAt(race.start)
-    : showReplayField ? fieldAt(time) : [];
+  const opening = showCircuit && time - race.start < CIRCUIT_LAUNCH_MS;
+  const grid = opening ? circuitOpeningGrid(shape) : null;
+  const drivers = grid ? circuitStartingField(race) : showCircuit && shape ? fieldAt(time) : [];
   for (const { driver, position } of drivers) {
     const samples = mediaSamples(driver, "locations");
     const slot = grid?.slots[position - 1];
-    const point = slot ? null : circuitLocation(samples, time);
+    const point = !slot && shape ? circuitLocation(samples, time) : null;
     if (!slot && !point) continue;
     const [x, y] = point ? mapPoint(point, shape.transform) : [];
-    const pose = slot ? circuitLaunchPose(slot, samples, shape.transform, race.start, time)
+    const pose = slot
+      ? grid.schematic ? slot : circuitLaunchPose(slot, samples, shape.transform, race.start, time)
       : { x, y, heading: circuitHeading(samples, time) };
     const key = driver === a ? "a" : driver === b ? "b" : null;
     positions.push({ ...pose, key, gridPosition: slot ? position : null,
       color: driver.color, code: driver.code, team: driver.team });
   }
   for (const [key, driver] of [["a", a], ["b", b]]) {
+    if (!driver) continue;
     const pin = $(`marker-${key}`);
+    if (!pin) continue;
     const samples = mediaSamples(driver, "locations");
     const point = circuitLocation(samples, time);
     pin.style.display = point && race.shape ? "" : "none";
@@ -264,10 +276,15 @@ function syncClock() {
 
 function render() {
   const waiting = race.live && !race.started;
-  document.querySelector(".dashboard").hidden = waiting;
-  $("race-waiting").hidden = !waiting;
+  const showWaitingGrid = waiting && !mobileLayout.matches && document.body.dataset.view === "circuit";
+  document.querySelector(".dashboard").hidden = waiting && !showWaitingGrid;
+  document.body.toggleAttribute("data-circuit-waiting", showWaitingGrid);
+  $("race-waiting").hidden = !waiting || showWaitingGrid;
   syncClock();
-  if (waiting) return;
+  if (waiting) {
+    if (showWaitingGrid) updateMap(null, null, state.time);
+    return;
+  }
   const time = state.time;
   const battles = battlesAt(fieldAt(time));
   const lap = at(state.laps, time)?.[1] ?? 1;
@@ -275,6 +292,7 @@ function render() {
   const hadBattle = state.battle;
   state.battle = battle ?? null;
   if (!battle) {
+    updateMap(null, null, time);
     if (!hadBattle && state.listKey === "empty") return;
     $("battle-list").innerHTML = '<p class="chart-empty">No adjacent drivers in this sample.</p>';
     $("battle-select").value = "";
@@ -283,7 +301,6 @@ function render() {
     state.listKey = "empty";
     for (const id of ["gap", "distance", "closing", "traction", "a-speed", "b-speed", "speed-delta"]) text(id, missing);
     for (const id of ["overlay-plot", "history-plot", "probability-plot", "matrix-grid", "sector-deltas"]) $(id).innerHTML = '<p class="chart-empty">Timing unavailable</p>';
-    drawCircuitScene([]);
     for (const id of ["radar-cars", "circuit-markers", "power-row"]) $(id).replaceChildren();
     text("pace-winner", "Timing unavailable");
     state.pairKey = "";

@@ -16,7 +16,7 @@ function newLiveRace(session) {
   return {
     live: true, session: session.session_key, circuit, scheduled, start: scheduled, end: Infinity,
     started: false, firstLap: Infinity, green: null, finished: null, latest: null, receivedAt: 0,
-    shape: null, nextShapeCheck: 0, participants: {}, embeddedBlocks: [], lapClock: [],
+    shape: null, nextShapeCheck: 0, participants: {}, startingGrid: {}, embeddedBlocks: [], lapClock: [],
     official: { round: "live", name, shortName: name.replace(" Grand Prix", " GP"),
       total: null, circuit, results: [] },
   };
@@ -36,6 +36,11 @@ function addLiveSample(samples, point) {
 }
 
 function mergeLiveRows(recording, rows) {
+  for (const { driver_number: number, position } of rows.starting_grid ?? []) {
+    if (Number.isInteger(number) && Number.isInteger(position) && position > 0) {
+      recording.startingGrid[number] = position;
+    }
+  }
   for (const row of rows.drivers ?? []) {
     if (!Number.isFinite(row.driver_number)) continue;
     const driver = liveDriver(recording, row.driver_number);
@@ -273,7 +278,7 @@ function acceptLiveUpdate({ session, connected, rows, source = "openf1", lap = n
     // Driver info can arrive after the first timing burst.
     if (rows?.drivers?.length) state.pairKey = "";
     if (!hadShape && recording.shape) renderShape();
-    if (phase !== previousPhase || !state.battle || rows?.drivers?.length) render();
+    if (phase !== previousPhase || !state.battle || rows?.drivers?.length || rows?.starting_grid?.length) render();
     refreshLiveStatus();
     startLiveClock();
     if (phase === "finished" && previousPhase !== "finished") void syncRace();

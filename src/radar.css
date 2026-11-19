@@ -335,6 +335,9 @@ body[data-view="data"] .radar, body[data-view="circuit"] .radar, body[data-view=
 body[data-view="data"] .power-row { max-width: 720px; width: 100%; align-self: center; }
 body[data-view="data"] .speed-row { max-width: 720px; width: 100%; align-self: center; }
 body[data-view="data"] .overlay-plot svg { overflow: hidden; }
+body[data-circuit-waiting] .dashboard .upper { grid-template-columns: minmax(0, 1fr); }
+body[data-circuit-waiting] .battles, body[data-circuit-waiting] .lower { display: none; }
+body[data-circuit-waiting] .dashboard .circuit-slot { grid-column: 1; }
 body[data-view="circuit"] .lower { grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); }
 body[data-view="circuit"] .map-slot { display: none; }
 body[data-view="circuit"] .circuit-slot .circuit { padding: 12px; }

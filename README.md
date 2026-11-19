@@ -8,6 +8,12 @@
 
 ## Latest update
 
+**19 November 2026 · Starting grids across circuits and live races**
+
+- Desktop Circuit View uses the same numbered starting grid, driver codes and team-logo badges across circuits. It uses published grid positions when available and draws a schematic grid when the circuit trace is unavailable.
+- Live Circuit View shows GPS-equipped cars when the OpenF1 relay supplies positions and a circuit trace can be built. GitHub Pages uses the public timing feed, which does not include GPS or official starting-grid rows. The relay must run the latest server code to forward those rows.
+
+
 **19 November 2026 · Spline car and 22-place starting grid**
 
 - Desktop Circuit View uses the same 2026-inspired 3D car mesh created in Spline, with team colors and metre-scale dimensions. Both drivers follow the replay GPS clock and heading.

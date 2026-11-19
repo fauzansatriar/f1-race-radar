@@ -20,7 +20,7 @@ from urllib.request import Request, urlopen
 OPEN_F1 = 'https://api.openf1.org'
 LIMITS = {
     'drivers': 50, 'position': 3000, 'intervals': 5000, 'laps': 2400,
-    'race_control': 500, 'car_data': 7500, 'location': 7500,
+    'race_control': 500, 'starting_grid': 50, 'car_data': 7500, 'location': 7500,
 }
 MEDIA = {'car_data', 'location'}
 
@@ -87,6 +87,7 @@ class Feed:
                     time_key = timestamp(time_key).isoformat(timespec='milliseconds')
                 identity = {
                     'drivers': (row.get('driver_number'),),
+                    'starting_grid': (row.get('driver_number'),),
                     'laps': (row.get('driver_number'), row.get('lap_number')),
                     'race_control': (time_key, row.get('message')),
                 }.get(topic, (row.get('driver_number'), time_key))
@@ -153,7 +154,7 @@ class OpenF1Relay:
 
         def connected(client, userdata, flags, reason, properties):
             if not reason.is_failure:
-                client.subscribe([(f'v1/{topic}', 0) for topic in LIMITS])
+                client.subscribe([(f'v1/{topic}', 0) for topic in LIMITS if topic != 'starting_grid'])
                 self.feed.set_connected(True)
                 self.backfill.set()
 
@@ -187,7 +188,10 @@ class OpenF1Relay:
                 age = 35 if topic in MEDIA else 600
                 filters['date>'] = (now - timedelta(seconds=age)).isoformat()
             try:
-                self.feed.add(topic, self.get(topic, **filters))
+                rows = self.get(topic, **filters)
+                self.feed.add(topic, rows)
+                if topic == 'starting_grid' and not rows and now < timestamp(session['date_start']) + timedelta(minutes=2):
+                    return topic
                 return None
             except (OSError, ValueError):
                 return topic

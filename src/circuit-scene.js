@@ -120,12 +120,15 @@ function drawCircuitScene(cars, openingGrid) {
   const followed = cars.find((car) => car.key === circuitCamera.replace("cockpit-", ""));
   const cockpitReady = cockpit && Boolean(followed && race.shape?.points.length);
   if (cockpit && !cockpitReady) status.hidden = false;
+  if (openingGrid && (openingGrid.schematic || !cars.length)) status.hidden = false;
   const zoom = 2 ** (circuitZoom / 2);
   text("circuit-zoom-readout", `${Number(zoom.toFixed(1))}×`);
   $("circuit-zoom-out").disabled = !race.shape || circuitZoom === 0;
   $("circuit-zoom-in").disabled = !race.shape || circuitZoom === (cockpit ? 2 : MAX_CIRCUIT_ZOOM);
   $("circuit-zoom-reset").disabled = !race.shape || circuitZoom === 0;
-  text("circuit-scene-status", !race.shape ? "Circuit GPS trace unavailable"
+  text("circuit-scene-status", openingGrid && !cars.length ? "Starting order unavailable"
+    : openingGrid?.schematic ? "Starting grid · circuit GPS trace unavailable"
+    : !race.shape ? "Circuit GPS trace unavailable"
     : cockpit && !cockpitReady ? "Cockpit waiting for GPS"
     : circuitCamera !== "overview" && !followed ? "Follow camera waiting for GPS"
     : cars.length ? "One driver has no GPS sample here" : "Driver GPS samples unavailable here");
@@ -147,8 +150,8 @@ function drawCircuitScene(cars, openingGrid) {
     drawCircuitCockpit(ctx, width, height, followed, cars, smoothCircuitRoute(race.shape.points), unitsPerMetre, zoom);
     return;
   }
-  if (circuitCamera === "overview" && openingGrid?.slots.length > 1) {
-    drawCircuitStartOverview(ctx, width, height, openingGrid, cars, unitsPerMetre);
+  if (openingGrid && (circuitCamera === "overview" || openingGrid.schematic)) {
+    drawCircuitStartOverview(ctx, width, height, openingGrid, cars, openingGrid.units);
     return;
   }
   const overviewScale = Math.min(width / 345, height / 167);
@@ -305,7 +308,7 @@ function drawCircuitStartOverview(ctx, width, height, grid, cars, units) {
     ctx.fillText(slot.label, labelX, labelY, labelWidth);
     ctx.font = detailFont;
     ctx.fillStyle = "#d9e4eb";
-    ctx.fillText(car?.code ?? "EMPTY", labelX, labelY + lineHeight, labelWidth);
+    if (cars.length) ctx.fillText(car?.code ?? "EMPTY", labelX, labelY + lineHeight, labelWidth);
     if (logo) {
       const badgeY = labelY + 2 * lineHeight;
       ctx.beginPath();
@@ -433,15 +436,25 @@ function circuitTrackTangent(route, x, y) {
 }
 
 const circuitGridCache = new WeakMap();
+const CIRCUIT_GRID_SLOTS = 22;
+const schematicGridRoute = [[190, 0], [190, 30], [0, 30], [0, 0]];
+
+function circuitOpeningGrid(shape) {
+  if (shape?.points.length) {
+    const grid = circuitGrid(smoothCircuitRoute(shape.points), shape.transform[2] * 10);
+    if (grid.slots.length === CIRCUIT_GRID_SLOTS) return grid;
+  }
+  return { ...circuitGrid(schematicGridRoute, 1), schematic: true };
+}
 
 function circuitGrid(route, units) {
   const cached = circuitGridCache.get(route);
   if (cached?.units === units) return cached;
   const grid = { units, markings: [], slots: [], road: [] };
   if (!(units > 0) || route.length < 2) return grid;
-  const slotCount = 22, firstSlot = 8, spacing = 8, boxLength = 2.4;
+  const firstSlot = 8, spacing = 8, boxLength = 2.4;
   const carCenterOffset = 2.975;
-  const gridLength = firstSlot + (slotCount - 1) * spacing + carCenterOffset;
+  const gridLength = firstSlot + (CIRCUIT_GRID_SLOTS - 1) * spacing + carCenterOffset;
   // Walk backwards from the start line so each slot follows the local road.
   const series = [[0, ...route[0]]];
   for (let i = route.length - 1; i > 0 && series.at(-1)[0] < gridLength; i--) {
@@ -471,7 +484,7 @@ function circuitGrid(route, units) {
     if (back === roadEnd) break;
   }
   paint(0, .35, -5.25, 5.25);
-  for (let slot = 0; slot < slotCount; slot++) {
+  for (let slot = 0; slot < CIRCUIT_GRID_SLOTS; slot++) {
     const back = firstSlot + slot * spacing;
     if (back + carCenterOffset > series.at(-1)[0]) break;
     const side = slot % 2 ? 2.8 : -2.8;

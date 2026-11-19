@@ -70,7 +70,7 @@ function readOfficial(resultsDocument, standings = []) {
     total: Number(result.Results[0].laps),
     winner: Number(result.Results[0].number),
     results: result.Results.map((entry) => ({
-      ...driverEntry(entry), status: entry.Time?.time || entry.status, raceStatus: entry.status, laps: Number(entry.laps), number: Number(entry.number),
+      ...driverEntry(entry), status: entry.Time?.time || entry.status, raceStatus: entry.status, laps: Number(entry.laps), number: Number(entry.number), grid: Number(entry.grid),
     })),
     standings,
   };
