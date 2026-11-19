@@ -1594,12 +1594,59 @@ function circuitLocation(samples, time, freshness = 8000) {
   return frame;
 }
 
+function circuitAngleDelta(from, to) {
+  return Math.atan2(Math.sin(to - from), Math.cos(to - from));
+}
+
 function circuitHeading(samples, time) {
-  const from = circuitLocation(samples, time - 400, 1800);
-  const to = circuitLocation(samples, time + 400, 1800);
-  if (!from || !to) return null;
-  const dx = to[2] - from[2], dy = to[1] - from[1];
-  return Math.hypot(dx, dy) > 0 ? Math.atan2(dy, dx) : null;
+  const vector = (radius) => {
+    const from = circuitLocation(samples, time - radius, 1800);
+    const to = circuitLocation(samples, time + radius, 1800);
+    if (!from || !to) return null;
+    const dx = to[2] - from[2], dy = to[1] - from[1];
+    return Math.hypot(dx, dy) >= 1.5 ? Math.atan2(dy, dx) : null;
+  };
+  const local = vector(320);
+  const wider = vector(720);
+  return local === null || wider === null ? local ?? wider
+    : local + .45 * circuitAngleDelta(local, wider);
+}
+
+let circuitMotion = { time: null, headings: new Map(), chase: null };
+
+function resetCircuitMotion() {
+  circuitMotion = { time: null, headings: new Map(), chase: null };
+}
+
+function dampCircuitHeadings(poses, route, time) {
+  const elapsed = time - (circuitMotion.time ?? time);
+  const continuous = circuitMotion.time !== null && elapsed >= 0 && elapsed <= 1100;
+  const previous = continuous ? circuitMotion.headings : new Map();
+  const blend = 1 - Math.exp(-elapsed / 140);
+  circuitMotion.time = time;
+  circuitMotion.headings = new Map();
+  return poses.map((pose) => {
+    const before = previous.get(pose.code);
+    const target = pose.heading ?? before ?? (route ? circuitTrackTangent(route, pose.x, pose.y)?.heading : null) ?? 0;
+    const heading = before === undefined ? target : before + blend * circuitAngleDelta(before, target);
+    circuitMotion.headings.set(pose.code, heading);
+    return { ...pose, heading };
+  });
+}
+
+function circuitChasePose(driver, time, units) {
+  const before = circuitMotion.chase;
+  const elapsed = time - (before?.time ?? time);
+  const fresh = before?.code !== driver.code || elapsed < 0 || elapsed > 1100;
+  const blend = fresh ? 1 : 1 - Math.exp(-elapsed / 210);
+  const x = fresh ? driver.x : before.x + (driver.x - before.x) * blend;
+  const y = fresh ? driver.y : before.y + (driver.y - before.y) * blend;
+  const dx = x - driver.x, dy = y - driver.y;
+  // Keep the target close enough to the centre of the chase view at racing speeds.
+  const limit = Math.min(1, 1.4 * units / (Math.hypot(dx, dy) || 1));
+  const heading = fresh ? driver.heading : before.heading + blend * circuitAngleDelta(before.heading, driver.heading);
+  circuitMotion.chase = { code: driver.code, time, x: driver.x + dx * limit, y: driver.y + dy * limit, heading };
+  return circuitMotion.chase;
 }
 
 const CIRCUIT_LAUNCH_MS = 8000;
@@ -1613,7 +1660,7 @@ function circuitLaunchPose(slot, samples, transform, start, time) {
   const t = clamp((time - start - 1500) / (CIRCUIT_LAUNCH_MS - 1500), 0, 1);
   const fade = t * t * (3 - 2 * t);
   const heading = circuitHeading(samples, time) ?? slot.heading;
-  const turn = Math.atan2(Math.sin(heading - slot.heading), Math.cos(heading - slot.heading));
+  const turn = circuitAngleDelta(slot.heading, heading);
   return { x: x + (slot.x - startX) * (1 - fade), y: y + (slot.y - startY) * (1 - fade),
     heading: slot.heading + turn * fade };
 }
@@ -1639,7 +1686,8 @@ function drawCircuitScene(poses, openingGrid) {
   const unitsPerMetre = (shape?.transform[2] ?? 0) * 10;
   const units = openingGrid?.schematic ? openingGrid.units : unitsPerMetre;
   const route = shape?.points.length && smoothCircuitRoute(shape.points);
-  const cars = separateCircuitCars(poses, units, openingGrid?.schematic ? null : route);
+  const headings = dampCircuitHeadings(poses, openingGrid?.schematic ? null : route, state.time);
+  const cars = separateCircuitCars(headings, units);
   if (state.battle) updateCircuitDuel();
   const cockpit = circuitCamera.startsWith("cockpit-");
   for (const button of controls.querySelectorAll("button[data-camera]")) {
@@ -1867,18 +1915,17 @@ function updateCircuitDuel() {
 }
 
 function drawCircuitCockpit(ctx, width, height, driver, cars, route, units, zoom) {
-  const tangent = Number.isFinite(driver.heading) ? null : circuitTrackTangent(route, driver.x, driver.y);
-  const heading = driver.heading ?? tangent?.heading;
-  if (!Number.isFinite(heading)) return;
+  const chasePose = circuitChasePose(driver, state.time, units);
+  const { heading } = chasePose;
   const cos = Math.cos(heading), sin = Math.sin(heading);
   const focal = Math.min(width * .65, height * 1.23);
   const chase = 10 / zoom;
   const eyeHeight = 2.6;
   const horizon = height * .29;
   const near = 1.25;
-  // Camera space in metres. Camera and car use the same interpolated GPS sample.
+  // Project around the damped camera target in metres.
   const camera = (x, y, elevation = 0) => {
-    const dx = (x - driver.x) / units, dy = (y - driver.y) / units;
+    const dx = (x - chasePose.x) / units, dy = (y - chasePose.y) / units;
     return [(dy * cos - dx * sin), eyeHeight - elevation / units, dx * cos + dy * sin + chase];
   };
   const screen = ([x, y, depth]) => [width / 2 + x * focal / depth, horizon + y * focal / depth];
@@ -3483,6 +3530,7 @@ function renderShape() {
 }
 
 function renderRace() {
+  resetCircuitMotion();
   resetCircuitOverview();
   $("race-picker").close();
   state.battle = null;
@@ -3515,6 +3563,7 @@ function renderRace() {
 }
 
 function setTime(time) {
+  resetCircuitMotion();
   state.time = clamp(time, race.start, race.end);
   render();
   queueMedia();
@@ -3864,6 +3913,7 @@ installCircuitOverviewControls($("circuit-scene"));
 $("circuit-camera").addEventListener("click", (event) => {
   const button = event.target.closest("button[data-camera]");
   if (!button || button.disabled) return;
+  if (circuitCamera !== button.dataset.camera) circuitMotion.chase = null;
   circuitCamera = button.dataset.camera;
   setCircuitZoom(circuitZoom);
 });
