@@ -195,12 +195,14 @@ function setBadges(a, b) {
 }
 
 function updateMap(a, b, time) {
+  const positions = [];
   for (const [key, driver] of [["a", a], ["b", b]]) {
     const pin = $(`marker-${key}`);
     const point = interpolateSample(mediaSamples(driver, "locations"), time, LOCATION, 3500, 8000);
     pin.style.display = point && race.shape ? "" : "none";
     if (!point || !race.shape) continue;
     const [x, y] = mapPoint(point, race.shape.transform);
+    positions.push({ x, y, color: driver.color, code: driver.code });
     pin.style.transform = `translate(${x}px,${y}px)`;
     const offset = key === "a" && x > 79 || x > 338 ? -71 : 7;
     const vertical = y < 31 ? 6 : key === "a" ? -13 : -27;
@@ -209,6 +211,7 @@ function updateMap(a, b, time) {
     pin.querySelector("text").setAttribute("x", offset + 5);
     pin.querySelector("text").setAttribute("y", vertical + 12);
   }
+  drawCircuitScene(positions);
 }
 
 function syncClock() {
@@ -257,6 +260,7 @@ function render() {
     state.listKey = "empty";
     for (const id of ["gap", "distance", "closing", "traction", "a-speed", "b-speed", "speed-delta"]) text(id, missing);
     for (const id of ["overlay-plot", "history-plot", "probability-plot", "matrix-grid", "sector-deltas"]) $(id).innerHTML = '<p class="chart-empty">Timing unavailable</p>';
+    drawCircuitScene([]);
     for (const id of ["radar-cars", "circuit-markers", "power-row"]) $(id).replaceChildren();
     text("pace-winner", "Timing unavailable");
     state.pairKey = "";
@@ -511,6 +515,7 @@ function raceLapTimes(recording) {
 
 function renderShape() {
   const points = race.shape?.points;
+  drawCircuitScene([]);
   $("circuit-route").setAttribute("d", points?.length ? "M" + points.map((point) => point.join(",")).join(" L") + " Z" : "");
   const finish = $("finish-marker");
   finish.toggleAttribute("hidden", !points?.length);
@@ -914,5 +919,9 @@ $("matrix-grid").classList.add("duel-sectors");
 renderCatalog();
 renderRace();
 updateView();
+renderMotion(true);
+window.addEventListener("resize", () => {
+  if (document.body.dataset.view === "circuit") renderMotion();
+});
 void syncRace();
 void connectLive();

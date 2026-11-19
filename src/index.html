@@ -133,6 +133,8 @@
         <section class="circuit panel" id="circuit-panel" aria-labelledby="circuit-title">
           <h2 id="circuit-title">Circuit GPS</h2>
           <div class="circuit-plot">
+            <canvas id="circuit-scene" role="img" aria-label="Perspective circuit map with both drivers' recorded positions" hidden></canvas>
+            <p id="circuit-scene-status" class="circuit-scene-status" hidden></p>
             <svg viewBox="0 0 420 228" role="img" aria-label="Circuit trace from OpenF1 GPS">
               <defs>
                 <pattern id="finish-line" width="6" height="6" patternUnits="userSpaceOnUse">

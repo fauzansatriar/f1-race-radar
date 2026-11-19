@@ -8,6 +8,10 @@
 
 ## Latest update
 
+**19 November 2026 · Desktop circuit perspective**
+
+- Circuit View projects the GPS-derived route into perspective and tracks the selected duel on the replay clock. Car markers appear when location samples are available.
+
 **19 November 2026 · Grand Prix picker**
 
 - The Grand Prix selector uses the same branded, keyboard-accessible list as the battle and lap pickers.

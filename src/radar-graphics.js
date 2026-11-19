@@ -88,6 +88,7 @@ function updateView() {
   });
   const showingCircuit = mode === "circuit";
   $("circuit-slot").hidden = !showingCircuit;
+  drawCircuitScene([]);
   $("classification").hidden = mode !== "data";
   $(showingCircuit ? "circuit-slot" : "map-slot").append($("circuit-panel"));
 }

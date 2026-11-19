@@ -802,6 +802,11 @@ body[data-view="data"] .telemetry { display: none; }
 }
 @keyframes picker-enter { from { transform: translateY(9px); opacity: .7; } }
 @media (prefers-reduced-motion: reduce) { .race-picker[open] { animation: none; } }
+
+.circuit-plot:has(#circuit-scene:not([hidden])) { min-height: 300px; }
+#circuit-scene { position: absolute; inset: 0; display: block; width: 100%; height: 100%; border-radius: 7px; }
+#circuit-scene:not([hidden]) ~ svg { display: none; }
+.circuit-scene-status { position: absolute; bottom: 8px; left: 10px; margin: 0; padding: 6px 8px; background: #111820; color: #e4e9ef; font-size: 11px; border-radius: 4px; }
 </style>
 </head>
 <body data-view="radar">
@@ -927,6 +932,8 @@ body[data-view="data"] .telemetry { display: none; }
         <section class="circuit panel" id="circuit-panel" aria-labelledby="circuit-title">
           <h2 id="circuit-title">Circuit GPS</h2>
           <div class="circuit-plot">
+            <canvas id="circuit-scene" role="img" aria-label="Perspective circuit map with both drivers' recorded positions" hidden></canvas>
+            <p id="circuit-scene-status" class="circuit-scene-status" hidden></p>
             <svg viewBox="0 0 420 228" role="img" aria-label="Circuit trace from OpenF1 GPS">
               <defs>
                 <pattern id="finish-line" width="6" height="6" patternUnits="userSpaceOnUse">
@@ -1364,8 +1371,99 @@ function updateView() {
   });
   const showingCircuit = mode === "circuit";
   $("circuit-slot").hidden = !showingCircuit;
+  drawCircuitScene([]);
   $("classification").hidden = mode !== "data";
   $(showingCircuit ? "circuit-slot" : "map-slot").append($("circuit-panel"));
+}
+
+function drawCircuitScene(cars) {
+  const canvas = $("circuit-scene");
+  const visible = !mobileLayout.matches && document.body.dataset.view === "circuit";
+  canvas.hidden = !visible;
+  const status = $("circuit-scene-status");
+  status.hidden = !visible || Boolean(race.shape && cars.length === 2);
+  if (!visible) return;
+  text("circuit-scene-status", !race.shape ? "Circuit GPS trace unavailable"
+    : cars.length ? "One driver has no GPS sample here" : "Driver GPS samples unavailable here");
+
+  const { width, height } = canvas.getBoundingClientRect();
+  const ctx = canvas.getContext("2d");
+  if (!ctx || width < 1 || height < 1) return;
+  const density = Math.min(devicePixelRatio || 1, 2);
+  const w = Math.round(width * density), h = Math.round(height * density);
+  if (canvas.width !== w || canvas.height !== h) {
+    canvas.width = w;
+    canvas.height = h;
+  }
+  ctx.setTransform(density, 0, 0, density, 0, 0);
+  const scale = Math.min(width / 345, height / 167);
+  // Map the GPS plane into a pitched camera. The depth below the track is decorative.
+  const project = (x, y, elevation = 0) => {
+    const dx = x - 210, dy = y - 111;
+    const across = dx * .985 + dy * .174;
+    const depth = dy * .985 - dx * .174;
+    const perspective = 1 / (1 - depth / 440);
+    return [width / 2 + across * perspective * scale,
+      height * .51 + (depth * .46 - elevation) * perspective * scale];
+  };
+  const path = (points, elevation) => {
+    ctx.beginPath();
+    points.forEach(([x, y], index) => {
+      const point = project(x, y, elevation);
+      if (index) ctx.lineTo(...point);
+      else ctx.moveTo(...point);
+    });
+  };
+  const sky = ctx.createLinearGradient(0, 0, 0, height);
+  sky.addColorStop(0, "#0a1018");
+  sky.addColorStop(1, "#18242e");
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, width, height);
+  ctx.strokeStyle = "#2e4051";
+  ctx.lineWidth = 1;
+  for (let x = -280; x <= 700; x += 25) {
+    path([[x, -350], [x, 345]], -10);
+    ctx.stroke();
+  }
+  for (let y = -350; y <= 345; y += 25) {
+    path([[-280, y], [700, y]], -10);
+    ctx.stroke();
+  }
+  if (!race.shape?.points.length) return;
+  ctx.lineJoin = ctx.lineCap = "round";
+  for (const [ink, weight, elevation] of [
+    ["#090d14", 16, -5], ["#354657", 14, -2],
+    ["#bcc9d3", 10, 0], ["#27313b", 7, 0],
+  ]) {
+    path(race.shape.points, elevation);
+    ctx.closePath();
+    ctx.strokeStyle = ink;
+    ctx.lineWidth = weight;
+    ctx.stroke();
+  }
+  cars.forEach(({ x, y, color, code }, index) => {
+    const [px, py] = project(x, y);
+    if (px < 0 || px > width || py < 0 || py > height) return;
+    const labelY = Math.max(16, py - 21 - index * 24);
+    const labelX = Math.max(29, Math.min(width - 29, px + (index ? 26 : -26)));
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(px, py, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(px, py);
+    ctx.lineTo(labelX, labelY);
+    ctx.stroke();
+    ctx.fillStyle = "#111820";
+    ctx.fillRect(labelX - 26, labelY - 11, 52, 22);
+    ctx.fillStyle = "#f4f7fa";
+    ctx.font = '700 11px "Formula1", sans-serif';
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(code, labelX, labelY, 46);
+  });
 }
 
 function initializeRacePickers() {
@@ -2161,12 +2259,14 @@ function setBadges(a, b) {
 }
 
 function updateMap(a, b, time) {
+  const positions = [];
   for (const [key, driver] of [["a", a], ["b", b]]) {
     const pin = $(`marker-${key}`);
     const point = interpolateSample(mediaSamples(driver, "locations"), time, LOCATION, 3500, 8000);
     pin.style.display = point && race.shape ? "" : "none";
     if (!point || !race.shape) continue;
     const [x, y] = mapPoint(point, race.shape.transform);
+    positions.push({ x, y, color: driver.color, code: driver.code });
     pin.style.transform = `translate(${x}px,${y}px)`;
     const offset = key === "a" && x > 79 || x > 338 ? -71 : 7;
     const vertical = y < 31 ? 6 : key === "a" ? -13 : -27;
@@ -2175,6 +2275,7 @@ function updateMap(a, b, time) {
     pin.querySelector("text").setAttribute("x", offset + 5);
     pin.querySelector("text").setAttribute("y", vertical + 12);
   }
+  drawCircuitScene(positions);
 }
 
 function syncClock() {
@@ -2223,6 +2324,7 @@ function render() {
     state.listKey = "empty";
     for (const id of ["gap", "distance", "closing", "traction", "a-speed", "b-speed", "speed-delta"]) text(id, missing);
     for (const id of ["overlay-plot", "history-plot", "probability-plot", "matrix-grid", "sector-deltas"]) $(id).innerHTML = '<p class="chart-empty">Timing unavailable</p>';
+    drawCircuitScene([]);
     for (const id of ["radar-cars", "circuit-markers", "power-row"]) $(id).replaceChildren();
     text("pace-winner", "Timing unavailable");
     state.pairKey = "";
@@ -2477,6 +2579,7 @@ function raceLapTimes(recording) {
 
 function renderShape() {
   const points = race.shape?.points;
+  drawCircuitScene([]);
   $("circuit-route").setAttribute("d", points?.length ? "M" + points.map((point) => point.join(",")).join(" L") + " Z" : "");
   const finish = $("finish-marker");
   finish.toggleAttribute("hidden", !points?.length);
@@ -2880,6 +2983,10 @@ $("matrix-grid").classList.add("duel-sectors");
 renderCatalog();
 renderRace();
 updateView();
+renderMotion(true);
+window.addEventListener("resize", () => {
+  if (document.body.dataset.view === "circuit") renderMotion();
+});
 void syncRace();
 void connectLive();
 </script>
