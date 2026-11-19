@@ -200,14 +200,19 @@ function updateMap(a, b, time) {
   const shape = race.shape;
   const opening = showCircuit && !race.live && time - race.start < CIRCUIT_LAUNCH_MS && shape?.points.length;
   const grid = opening ? circuitGrid(smoothCircuitRoute(shape.points), shape.transform[2] * 10) : null;
-  if (grid?.slots.length) {
-    for (const { driver, position } of fieldAt(race.start)) {
-      const slot = grid.slots[position - 1];
-      if (!slot) continue;
-      const key = driver === a ? "a" : driver === b ? "b" : null;
-      const pose = circuitLaunchPose(slot, mediaSamples(driver, "locations"), shape.transform, race.start, time);
-      positions.push({ ...pose, key, color: driver.color, code: driver.code, team: driver.team });
-    }
+  const cockpitReplay = showCircuit && shape && !race.live && circuitCamera.startsWith("cockpit-");
+  const drivers = grid?.slots.length ? fieldAt(race.start)
+    : cockpitReplay ? fieldAt(time) : [];
+  for (const { driver, position } of drivers) {
+    const samples = mediaSamples(driver, "locations");
+    const slot = grid?.slots[position - 1];
+    const point = slot ? null : circuitLocation(samples, time);
+    if (!slot && !point) continue;
+    const [x, y] = point ? mapPoint(point, shape.transform) : [];
+    const pose = slot ? circuitLaunchPose(slot, samples, shape.transform, race.start, time)
+      : { x, y, heading: circuitHeading(samples, time) };
+    const key = driver === a ? "a" : driver === b ? "b" : null;
+    positions.push({ ...pose, key, color: driver.color, code: driver.code, team: driver.team });
   }
   for (const [key, driver] of [["a", a], ["b", b]]) {
     const pin = $(`marker-${key}`);

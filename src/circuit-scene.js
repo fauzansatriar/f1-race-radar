@@ -362,8 +362,11 @@ function drawCircuitCockpit(ctx, width, height, driver, cars, route, units, zoom
   }
   const projectCar = (x, y, z) => screen(camera(x, y, z));
   projectCar.depth = (x, y) => -camera(x, y)[2];
-  for (const car of [...cars].sort((a, b) => camera(b.x, b.y)[2] - camera(a.x, a.y)[2])) {
-    if (camera(car.x, car.y)[2] < near + 3) continue;
+  const visibleCars = cars.map((car) => ({ car, cameraPoint: camera(car.x, car.y) }))
+    .filter(({ cameraPoint: [across, , depth] }) =>
+      depth >= near + 3 && Math.abs(across) <= width / 2 * depth / focal + 3)
+    .sort((a, b) => b.cameraPoint[2] - a.cameraPoint[2]);
+  for (const { car } of visibleCars) {
     drawCircuitCar(ctx, projectCar, car.x, car.y, car.heading ?? heading, car.color, units);
   }
   drawCircuitGridLabels(ctx, grid.slots, width, height, (x, y) => {
