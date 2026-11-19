@@ -67,6 +67,7 @@ app = ('\n'.join(read(file) for file in (
 app = app.replace('/*__LAS_VEGAS_CIRCUIT__*/ {}', inline_json(json.loads(read('las-vegas-circuit.json'))))
 app = app.replace('/*__RACE_CACHE__*/ {}', inline_json(cache))
 app = app.replace('/*__CATALOG__*/ []', inline_json(catalog))
+app = app.replace('/*__SEASON_SCHEDULE__*/ {}', inline_json(json.loads(read('season-schedule.json'))))
 team_logos = {file.stem: asset(file, 'image/webp') for file in sorted((root / 'team-logos').glob('*.webp'))}
 app = app.replace('/*__TEAM_LOGOS__*/ {}', inline_json(team_logos))
 app = app.replace('/*__CAR_2026_MESH__*/ []', inline_json(json.loads(read('car-2026-mesh.json'))))

@@ -261,12 +261,40 @@ function fetchOpen(endpoint, query, signal) {
   return requestJSON(OPEN_F1 + endpoint + "?" + query, signal);
 }
 
-async function fetchRace(session, official, signal) {
+function readOpenF1Classification(entry, session, rows, drivers, startingGrid) {
+  const driverRows = new Map(drivers.map((driver) => [driver.driver_number, driver]));
+  const grid = new Map(startingGrid.map((slot) => [slot.driver_number, slot.position]));
+  const winner = rows.find((row) => row.position === 1 && !row.dnf && !row.dns && !row.dsq);
+  if (!winner || !Number.isInteger(winner.number_of_laps) || winner.number_of_laps <= 0) {
+    throw new Error("OpenF1 race classification unavailable.");
+  }
+  const results = rows.map((row) => {
+    const number = row.driver_number;
+    const driver = driverRows.get(number) ?? { driver_number: number };
+    const identity = driverIdentity(driver);
+    const raceStatus = row.dns ? "Did not start" : row.dsq ? "Disqualified" : row.dnf ? "Did not finish"
+      : row.number_of_laps < winner.number_of_laps ? "Lapped" : "Finished";
+    return { position: row.position, driver: identity.code, name: identity.name, team: identity.team,
+      number, grid: grid.get(number), laps: row.number_of_laps, points: row.points,
+      status: Number.isFinite(row.gap_to_leader) && row.gap_to_leader > 0
+        ? `+${row.gap_to_leader.toFixed(3)}s` : raceStatus, raceStatus };
+  }).sort((a, b) => (a.position ?? Infinity) - (b.position ?? Infinity));
+  return { name: entry.name, shortName: entry.name.replace(" Grand Prix", " GP"),
+    date: entry.date, round: entry.round, circuit: session.circuit_short_name,
+    total: winner.number_of_laps, winner: winner.driver_number, results };
+}
+
+async function fetchRace(session, official, signal, entry) {
   const filter = `session_key=${session.session_key}`;
   const input = { car_data: [], location: [] };
   for (const endpoint of ["laps", "drivers", "position", "intervals"]) {
     signal?.throwIfAborted();
     input[endpoint] = await fetchOpen(endpoint, filter, signal);
+  }
+  if (!official) {
+    const results = await fetchOpen("session_result", filter, signal);
+    const grid = await fetchOpen("starting_grid", filter, signal).catch(() => []);
+    official = readOpenF1Classification(entry, session, results, input.drivers, grid);
   }
   const controls = await fetchOpen("race_control", filter, signal).catch(() => []);
   signal?.throwIfAborted();

@@ -10,7 +10,7 @@
 
 **19 November 2026 · Jolpica race calendar**
 
-- Jolpica supplies the season calendar, completed race list, classifications and driver standings. Upcoming races appear even when the OpenF1 session list is unavailable. OpenF1 remains the source for replay timing, telemetry and GPS. Live timing comes from the Formula 1 public feed or the configured OpenF1 relay.
+- Jolpica supplies the season calendar, completed race list, classifications and driver standings. A bundled calendar keeps upcoming races visible when Jolpica is unavailable. OpenF1 classifications are used to open archived replays if Jolpica results cannot be loaded. OpenF1 remains the source for replay timing, telemetry and GPS. Live timing comes from the Formula 1 public feed or the configured OpenF1 relay.
 
 
 **19 November 2026 · Estimasi Live**

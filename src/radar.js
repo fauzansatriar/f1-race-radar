@@ -4,6 +4,7 @@ const portraits = /*__PORTRAITS__*/ {};
 const teamCars = /*__TEAM_CARS__*/ {};
 let race = /*__RACE_CACHE__*/ {};
 let catalog = /*__CATALOG__*/ [];
+let seasonSchedule = /*__SEASON_SCHEDULE__*/ {};
 let seasonStandings = race.official.standings;
 const recordings = new Map([[race.official.round, race]]);
 const mediaCache = new WeakMap();
@@ -784,9 +785,13 @@ async function selectGP(round) {
     let recording = recordings.get(round);
     if (!recording) {
       if (!entry.session) throw new Error("OpenF1 race session unavailable.");
-      const results = await fetchJolpica(round + "/results/", controller.signal);
-      const official = readOfficial(results);
-      recording = await fetchRace(entry.session, official, controller.signal);
+      let official;
+      try {
+        official = readOfficial(await fetchJolpica(round + "/results/", controller.signal));
+      } catch {
+        controller.signal.throwIfAborted();
+      }
+      recording = await fetchRace(entry.session, official, controller.signal, entry);
       recordings.set(round, recording);
     }
     controller.signal.throwIfAborted();
@@ -832,13 +837,11 @@ async function syncRace() {
       fetchJolpica(),
     ]);
     const openSessions = sessions.status === "fulfilled" ? sessions.value : [];
-    if (schedule.status === "fulfilled") {
-      refreshSchedule(readSeasonSchedule(schedule.value, openSessions));
-      renderCatalog();
-    } else if (!scheduledRaces.size && openSessions.length) {
-      refreshSchedule(openSessions.filter((session) => session.session_name === "Race" && !session.is_cancelled));
-      renderCatalog();
+    if (schedule.status === "fulfilled" && readSeasonSchedule(schedule.value, []).length) {
+      seasonSchedule = schedule.value;
     }
+    refreshSchedule(readSeasonSchedule(seasonSchedule, openSessions));
+    renderCatalog();
     if (classification.status === "fulfilled" && classification.value) {
       selected.official.results = readOfficial(classification.value).results;
       if (race === selected) renderClassification();
@@ -983,6 +986,7 @@ setInterval(() => {
 $("distance").title = "Estimated from interval × chasing car speed";
 
 $("matrix-grid").classList.add("duel-sectors");
+refreshSchedule(readSeasonSchedule(seasonSchedule, []));
 renderCatalog();
 renderRace();
 updateView();
