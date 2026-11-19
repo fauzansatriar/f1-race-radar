@@ -1618,7 +1618,7 @@ function circuitLaunchPose(slot, samples, transform, start, time) {
     heading: slot.heading + turn * fade };
 }
 
-function drawCircuitScene(cars, openingGrid) {
+function drawCircuitScene(poses, openingGrid) {
   const shape = circuitDisplayShape(race);
   text("circuit-title", (race.circuit || race.official.circuit)
     + (shape?.estimated ? " · Estimasi Live" : " · GPS"));
@@ -1630,11 +1630,16 @@ function drawCircuitScene(cars, openingGrid) {
   canvas.tabIndex = interactive ? 0 : -1;
   $("circuit-map-help").hidden = !interactive;
   const status = $("circuit-scene-status");
-  status.hidden = !visible || Boolean(shape && cars.some(({ key }) => key === "a") && cars.some(({ key }) => key === "b"));
+  status.hidden = !visible || Boolean(shape && poses.some(({ key }) => key === "a") && poses.some(({ key }) => key === "b"));
   const controls = $("circuit-camera");
   controls.hidden = !visible;
   $("circuit-duel").hidden = !visible || !state.battle;
   if (!visible) return;
+  // Circuit GPS positions are in decimetres.
+  const unitsPerMetre = (shape?.transform[2] ?? 0) * 10;
+  const units = openingGrid?.schematic ? openingGrid.units : unitsPerMetre;
+  const route = shape?.points.length && smoothCircuitRoute(shape.points);
+  const cars = separateCircuitCars(poses, units, openingGrid?.schematic ? null : route);
   if (state.battle) updateCircuitDuel();
   const cockpit = circuitCamera.startsWith("cockpit-");
   for (const button of controls.querySelectorAll("button[data-camera]")) {
@@ -1674,11 +1679,8 @@ function drawCircuitScene(cars, openingGrid) {
     canvas.height = h;
   }
   ctx.setTransform(density, 0, 0, density, 0, 0);
-  // F1 location coordinates use decimetres. Convert metres into the same
-  // normalized map units as the GPS trace before projecting either object.
-  const unitsPerMetre = (shape?.transform[2] ?? 0) * 10;
-  if (cockpitReady && unitsPerMetre && shape?.points.length) {
-    drawCircuitCockpit(ctx, width, height, followed, cars, smoothCircuitRoute(shape.points), unitsPerMetre, zoom);
+  if (cockpitReady && unitsPerMetre && !openingGrid?.schematic) {
+    drawCircuitCockpit(ctx, width, height, followed, cars, route, unitsPerMetre, zoom);
     return;
   }
   if (openingGrid && ((overview && !circuitOverviewAdjusted()) || openingGrid.schematic)) {
@@ -1722,7 +1724,6 @@ function drawCircuitScene(cars, openingGrid) {
     ctx.stroke();
   }
   if (!shape?.points.length) return;
-  const route = smoothCircuitRoute(shape.points);
   const crossSections = route.map(([x, y], index) => {
     const before = route[(index + route.length - 1) % route.length];
     const after = route[(index + 1) % route.length];
@@ -2065,6 +2066,104 @@ function drawCircuitDriverPins(ctx, cars, width, height, project, units) {
     ctx.fillText(car.code, left + (logo ? 21 : 6), top + 8.5);
   }
   ctx.restore();
+}
+
+// Symmetric bounds of the rendered mesh, measured in metres.
+const circuitCarHalfLength = 2.685;
+const circuitCarHalfWidth = .951;
+
+function circuitFootprintRadius(car, x, y, units) {
+  return units * (circuitCarHalfLength * Math.abs(x * car.fx + y * car.fy)
+    + circuitCarHalfWidth * Math.abs(y * car.fx - x * car.fy));
+}
+
+function circuitFootprintContact(car, other, units) {
+  const dx = car.x - other.x, dy = car.y - other.y;
+  if (dx * dx + dy * dy >= (5.7 * units) ** 2) return null;
+
+  const axes = [[car.fx, car.fy], [-car.fy, car.fx], [other.fx, other.fy], [-other.fy, other.fx]];
+  let minimum, longitudinal;
+  for (const [x, y] of axes) {
+    const offset = dx * x + dy * y;
+    const penetration = circuitFootprintRadius(car, x, y, units)
+      + circuitFootprintRadius(other, x, y, units) - Math.abs(offset);
+    if (penetration <= 0) return null;
+    const direction = offset > 0 ? 1 : -1;
+    const axis = { x: x * direction, y: y * direction, penetration };
+    longitudinal ??= axis;
+    if (!minimum || penetration < minimum.penetration) minimum = axis;
+  }
+
+  const side = Math.abs(dy * car.fx - dx * car.fy);
+  const aligned = car.fx * other.fx + car.fy * other.fy > .94;
+  // Same-lane cars keep their lane. Side-by-side cars separate along the nearest edge.
+  return aligned && side < .7 * units ? longitudinal : minimum;
+}
+
+function circuitRoomAlong(pose, car, placed, units, clearance, vx, vy) {
+  const blocked = [];
+  for (const other of placed) {
+    const dx = pose.x - other.x, dy = pose.y - other.y;
+    const axes = [[car.fx, car.fy], [-car.fy, car.fx], [other.fx, other.fy], [-other.fy, other.fx]];
+    let entry = 0, exit = Infinity;
+    for (const [x, y] of axes) {
+      const offset = dx * x + dy * y;
+      const step = vx * x + vy * y;
+      const radius = circuitFootprintRadius(car, x, y, units)
+        + circuitFootprintRadius(other, x, y, units) + clearance;
+      if (Math.abs(step) < 1e-9) {
+        if (Math.abs(offset) >= radius) exit = -Infinity;
+        continue;
+      }
+      const near = (-radius - offset) / step, far = (radius - offset) / step;
+      entry = Math.max(entry, Math.min(near, far));
+      exit = Math.min(exit, Math.max(near, far));
+      if (exit <= entry) break;
+    }
+    if (exit > entry) blocked.push([entry, exit]);
+  }
+  let distance = 0;
+  for (const [entry, exit] of blocked.sort((a, b) => a[0] - b[0])) {
+    if (entry > distance) break;
+    distance = Math.max(distance, exit);
+  }
+  return distance;
+}
+
+function separateCircuitCars(poses, units, route) {
+  if (poses.length < 2 || !(units > 0)) return poses;
+  const placed = [];
+  const clearance = .035 * units;
+  for (const pose of poses) {
+    const heading = pose.heading ?? (route && circuitTrackTangent(route, pose.x, pose.y)?.heading) ?? 0;
+    const car = { ...pose, heading, fx: Math.cos(heading), fy: Math.sin(heading) };
+    let contact;
+    for (let attempt = 0; attempt < 8; attempt++) {
+      contact = null;
+      for (const other of placed) {
+        contact = circuitFootprintContact(car, other, units);
+        if (contact) break;
+      }
+      if (!contact) break;
+      car.x += contact.x * (contact.penetration + clearance);
+      car.y += contact.y * (contact.penetration + clearance);
+    }
+    const correction = Math.hypot(car.x - pose.x, car.y - pose.y);
+    if (contact || correction > 5.4 * units) {
+      const directions = [[-car.fx, -car.fy, 1], [car.fx, car.fy, 1.5],
+        [-car.fy, car.fx, 3], [car.fy, -car.fx, 3]];
+      let cost = contact ? Infinity : correction;
+      for (const [vx, vy, weight] of directions) {
+        const distance = circuitRoomAlong(pose, car, placed, units, clearance, vx, vy);
+        if (distance * weight >= cost) continue;
+        cost = distance * weight;
+        car.x = pose.x + vx * distance;
+        car.y = pose.y + vy * distance;
+      }
+    }
+    placed.push(car);
+  }
+  return placed;
 }
 
 const circuitCarMaterials = {
