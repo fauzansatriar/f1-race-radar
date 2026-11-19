@@ -198,15 +198,15 @@ function updateMap(a, b, time) {
   const positions = [];
   const showCircuit = !mobileLayout.matches && document.body.dataset.view === "circuit";
   const shape = race.shape;
-  const startGrid = showCircuit && !race.live && time === race.start && shape?.points.length
-    ? circuitGrid(smoothCircuitRoute(shape.points), shape.transform[2] * 10).slots
-    : null;
-  if (startGrid?.length) {
-    for (const { driver, position } of fieldAt(time)) {
-      const slot = startGrid[position - 1];
+  const opening = showCircuit && !race.live && time - race.start < CIRCUIT_LAUNCH_MS && shape?.points.length;
+  const grid = opening ? circuitGrid(smoothCircuitRoute(shape.points), shape.transform[2] * 10) : null;
+  if (grid?.slots.length) {
+    for (const { driver, position } of fieldAt(race.start)) {
+      const slot = grid.slots[position - 1];
       if (!slot) continue;
       const key = driver === a ? "a" : driver === b ? "b" : null;
-      positions.push({ ...slot, key, color: driver.color, code: driver.code, team: driver.team });
+      const pose = circuitLaunchPose(slot, mediaSamples(driver, "locations"), shape.transform, race.start, time);
+      positions.push({ ...pose, key, color: driver.color, code: driver.code, team: driver.team });
     }
   }
   for (const [key, driver] of [["a", a], ["b", b]]) {
@@ -228,7 +228,7 @@ function updateMap(a, b, time) {
     pin.querySelector("text").setAttribute("x", offset + 5);
     pin.querySelector("text").setAttribute("y", vertical + 12);
   }
-  drawCircuitScene(positions);
+  drawCircuitScene(positions, grid);
 }
 
 function syncClock() {

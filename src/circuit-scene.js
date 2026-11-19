@@ -79,7 +79,23 @@ function circuitHeading(samples, time) {
   return Math.hypot(dx, dy) > 0 ? Math.atan2(dy, dx) : null;
 }
 
-function drawCircuitScene(cars) {
+const CIRCUIT_LAUNCH_MS = 8000;
+
+function circuitLaunchPose(slot, samples, transform, start, time) {
+  const origin = circuitLocation(samples, start, 2500);
+  const current = circuitLocation(samples, time);
+  if (!origin || !current || time <= start) return slot;
+  const [startX, startY] = mapPoint(origin, transform);
+  const [x, y] = mapPoint(current, transform);
+  const t = clamp((time - start - 1500) / (CIRCUIT_LAUNCH_MS - 1500), 0, 1);
+  const fade = t * t * (3 - 2 * t);
+  const heading = circuitHeading(samples, time) ?? slot.heading;
+  const turn = Math.atan2(Math.sin(heading - slot.heading), Math.cos(heading - slot.heading));
+  return { x: x + (slot.x - startX) * (1 - fade), y: y + (slot.y - startY) * (1 - fade),
+    heading: slot.heading + turn * fade };
+}
+
+function drawCircuitScene(cars, openingGrid) {
   const canvas = $("circuit-scene");
   const visible = !mobileLayout.matches && document.body.dataset.view === "circuit";
   canvas.hidden = !visible;
@@ -129,6 +145,10 @@ function drawCircuitScene(cars) {
   const unitsPerMetre = (race.shape?.transform[2] ?? 0) * 10;
   if (cockpitReady && unitsPerMetre && race.shape?.points.length) {
     drawCircuitCockpit(ctx, width, height, followed, cars, smoothCircuitRoute(race.shape.points), unitsPerMetre, zoom);
+    return;
+  }
+  if (circuitCamera === "overview" && openingGrid?.slots.length > 1) {
+    drawCircuitStartOverview(ctx, width, height, openingGrid, cars, unitsPerMetre);
     return;
   }
   const overviewScale = Math.min(width / 345, height / 167);
@@ -207,6 +227,57 @@ function drawCircuitScene(cars) {
     drawCircuitCar(ctx, project, x, y, heading, color, unitsPerMetre);
   }
   drawCircuitGridLabels(ctx, grid.slots, width, height, project);
+}
+
+function drawCircuitStartOverview(ctx, width, height, grid, cars, units) {
+  const first = grid.slots[0], last = grid.slots.at(-1);
+  const dx = first.x - last.x, dy = first.y - last.y;
+  const length = Math.hypot(dx, dy);
+  if (!length) return;
+  const horizontal = (x, y) => ((x - last.x) * dx + (y - last.y) * dy) / length;
+  const scale = (width - 64) / (length + 12 * units);
+  const centre = height / 2;
+  const project = (x, y, z = 0) => [
+    32 + (horizontal(x, y) + 6 * units) * scale,
+    centre + ((y - last.y) * dx - (x - last.x) * dy) / length * scale - z * .45 * scale,
+  ];
+  project.depth = (x, y) => project(x, y)[1];
+
+  ctx.fillStyle = "#24323a";
+  ctx.fillRect(0, 0, width, height);
+  const polygon = (points, color) => {
+    ctx.beginPath();
+    points.forEach((point, index) => index ? ctx.lineTo(...point) : ctx.moveTo(...point));
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.fill();
+  };
+  for (const [edge, color] of [[6, "#aab9c3"], [5.8, "#303943"]]) {
+    polygon([...grid.road.map(({ left }) => project(...left(edge))),
+      ...grid.road.slice().reverse().map(({ right }) => project(...right(edge)))], color);
+  }
+  for (const { corners, color } of grid.markings) polygon(corners.map((point) => project(...point)), color);
+  for (const car of cars) drawCircuitCar(ctx, project, car.x, car.y, car.heading, car.color, units);
+
+  ctx.font = `bold ${Math.min(14, Math.max(10, Math.floor((width - 56) / 30)))}px system-ui, sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.strokeStyle = "#8195a3";
+  ctx.lineWidth = 1;
+  for (const [index, slot] of grid.slots.entries()) {
+    const [x, y] = project(...slot.labelAnchor);
+    const row = index % 2;
+    const column = Math.floor(index / 2);
+    const columns = Math.ceil((grid.slots.length - row) / 2);
+    const labelX = width - 24 - column * (width - 48) / Math.max(1, columns - 1);
+    const labelY = centre + (row ? -1 : 1) * Math.min(74, height / 3);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(labelX, labelY + (row ? 9 : -9));
+    ctx.stroke();
+    ctx.fillStyle = "#fff";
+    ctx.fillText(slot.label, labelX, labelY);
+  }
 }
 
 function updateCircuitDuel() {
@@ -323,7 +394,7 @@ const circuitGridCache = new WeakMap();
 function circuitGrid(route, units) {
   const cached = circuitGridCache.get(route);
   if (cached?.units === units) return cached;
-  const grid = { units, markings: [], slots: [] };
+  const grid = { units, markings: [], slots: [], road: [] };
   if (!(units > 0) || route.length < 2) return grid;
   const slotCount = 22, firstSlot = 8, spacing = 8, boxLength = 2.4;
   const carCenterOffset = 2.975;
@@ -350,6 +421,12 @@ function circuitGrid(route, units) {
     grid.markings.push({ corners: [point(back, left), point(back, right),
       point(back + length, right), point(back + length, left)], color: "#edf1ef" });
   };
+  const roadEnd = Math.min(gridLength, series.at(-1)[0]);
+  for (const [distance] of series) {
+    const back = Math.min(distance, roadEnd);
+    grid.road.push({ left: (edge) => point(back, -edge), right: (edge) => point(back, edge) });
+    if (back === roadEnd) break;
+  }
   paint(0, .35, -5.25, 5.25);
   for (let slot = 0; slot < slotCount; slot++) {
     const back = firstSlot + slot * spacing;
