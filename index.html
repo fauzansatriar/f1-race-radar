@@ -352,6 +352,9 @@ body[data-view="data"] .radar, body[data-view="circuit"] .radar, body[data-view=
 body[data-view="data"] .power-row { max-width: 720px; width: 100%; align-self: center; }
 body[data-view="data"] .speed-row { max-width: 720px; width: 100%; align-self: center; }
 body[data-view="data"] .overlay-plot svg { overflow: hidden; }
+body[data-circuit-waiting] .dashboard .upper { grid-template-columns: minmax(0, 1fr); }
+body[data-circuit-waiting] .battles, body[data-circuit-waiting] .lower { display: none; }
+body[data-circuit-waiting] .dashboard .circuit-slot { grid-column: 1; }
 body[data-view="circuit"] .lower { grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); }
 body[data-view="circuit"] .map-slot { display: none; }
 body[data-view="circuit"] .circuit-slot .circuit { padding: 12px; }
@@ -1122,7 +1125,7 @@ function readOfficial(resultsDocument, standings = []) {
     total: Number(result.Results[0].laps),
     winner: Number(result.Results[0].number),
     results: result.Results.map((entry) => ({
-      ...driverEntry(entry), status: entry.Time?.time || entry.status, raceStatus: entry.status, laps: Number(entry.laps), number: Number(entry.number),
+      ...driverEntry(entry), status: entry.Time?.time || entry.status, raceStatus: entry.status, laps: Number(entry.laps), number: Number(entry.number), grid: Number(entry.grid),
     })),
     standings,
   };
@@ -1533,12 +1536,15 @@ function drawCircuitScene(cars, openingGrid) {
   const followed = cars.find((car) => car.key === circuitCamera.replace("cockpit-", ""));
   const cockpitReady = cockpit && Boolean(followed && race.shape?.points.length);
   if (cockpit && !cockpitReady) status.hidden = false;
+  if (openingGrid && (openingGrid.schematic || !cars.length)) status.hidden = false;
   const zoom = 2 ** (circuitZoom / 2);
   text("circuit-zoom-readout", `${Number(zoom.toFixed(1))}×`);
   $("circuit-zoom-out").disabled = !race.shape || circuitZoom === 0;
   $("circuit-zoom-in").disabled = !race.shape || circuitZoom === (cockpit ? 2 : MAX_CIRCUIT_ZOOM);
   $("circuit-zoom-reset").disabled = !race.shape || circuitZoom === 0;
-  text("circuit-scene-status", !race.shape ? "Circuit GPS trace unavailable"
+  text("circuit-scene-status", openingGrid && !cars.length ? "Starting order unavailable"
+    : openingGrid?.schematic ? "Starting grid · circuit GPS trace unavailable"
+    : !race.shape ? "Circuit GPS trace unavailable"
     : cockpit && !cockpitReady ? "Cockpit waiting for GPS"
     : circuitCamera !== "overview" && !followed ? "Follow camera waiting for GPS"
     : cars.length ? "One driver has no GPS sample here" : "Driver GPS samples unavailable here");
@@ -1560,8 +1566,8 @@ function drawCircuitScene(cars, openingGrid) {
     drawCircuitCockpit(ctx, width, height, followed, cars, smoothCircuitRoute(race.shape.points), unitsPerMetre, zoom);
     return;
   }
-  if (circuitCamera === "overview" && openingGrid?.slots.length > 1) {
-    drawCircuitStartOverview(ctx, width, height, openingGrid, cars, unitsPerMetre);
+  if (openingGrid && (circuitCamera === "overview" || openingGrid.schematic)) {
+    drawCircuitStartOverview(ctx, width, height, openingGrid, cars, openingGrid.units);
     return;
   }
   const overviewScale = Math.min(width / 345, height / 167);
@@ -1718,7 +1724,7 @@ function drawCircuitStartOverview(ctx, width, height, grid, cars, units) {
     ctx.fillText(slot.label, labelX, labelY, labelWidth);
     ctx.font = detailFont;
     ctx.fillStyle = "#d9e4eb";
-    ctx.fillText(car?.code ?? "EMPTY", labelX, labelY + lineHeight, labelWidth);
+    if (cars.length) ctx.fillText(car?.code ?? "EMPTY", labelX, labelY + lineHeight, labelWidth);
     if (logo) {
       const badgeY = labelY + 2 * lineHeight;
       ctx.beginPath();
@@ -1846,15 +1852,25 @@ function circuitTrackTangent(route, x, y) {
 }
 
 const circuitGridCache = new WeakMap();
+const CIRCUIT_GRID_SLOTS = 22;
+const schematicGridRoute = [[190, 0], [190, 30], [0, 30], [0, 0]];
+
+function circuitOpeningGrid(shape) {
+  if (shape?.points.length) {
+    const grid = circuitGrid(smoothCircuitRoute(shape.points), shape.transform[2] * 10);
+    if (grid.slots.length === CIRCUIT_GRID_SLOTS) return grid;
+  }
+  return { ...circuitGrid(schematicGridRoute, 1), schematic: true };
+}
 
 function circuitGrid(route, units) {
   const cached = circuitGridCache.get(route);
   if (cached?.units === units) return cached;
   const grid = { units, markings: [], slots: [], road: [] };
   if (!(units > 0) || route.length < 2) return grid;
-  const slotCount = 22, firstSlot = 8, spacing = 8, boxLength = 2.4;
+  const firstSlot = 8, spacing = 8, boxLength = 2.4;
   const carCenterOffset = 2.975;
-  const gridLength = firstSlot + (slotCount - 1) * spacing + carCenterOffset;
+  const gridLength = firstSlot + (CIRCUIT_GRID_SLOTS - 1) * spacing + carCenterOffset;
   // Walk backwards from the start line so each slot follows the local road.
   const series = [[0, ...route[0]]];
   for (let i = route.length - 1; i > 0 && series.at(-1)[0] < gridLength; i--) {
@@ -1884,7 +1900,7 @@ function circuitGrid(route, units) {
     if (back === roadEnd) break;
   }
   paint(0, .35, -5.25, 5.25);
-  for (let slot = 0; slot < slotCount; slot++) {
+  for (let slot = 0; slot < CIRCUIT_GRID_SLOTS; slot++) {
     const back = firstSlot + slot * spacing;
     if (back + carCenterOffset > series.at(-1)[0]) break;
     const side = slot % 2 ? 2.8 : -2.8;
@@ -2261,7 +2277,7 @@ function newLiveRace(session) {
   return {
     live: true, session: session.session_key, circuit, scheduled, start: scheduled, end: Infinity,
     started: false, firstLap: Infinity, green: null, finished: null, latest: null, receivedAt: 0,
-    shape: null, nextShapeCheck: 0, participants: {}, embeddedBlocks: [], lapClock: [],
+    shape: null, nextShapeCheck: 0, participants: {}, startingGrid: {}, embeddedBlocks: [], lapClock: [],
     official: { round: "live", name, shortName: name.replace(" Grand Prix", " GP"),
       total: null, circuit, results: [] },
   };
@@ -2281,6 +2297,11 @@ function addLiveSample(samples, point) {
 }
 
 function mergeLiveRows(recording, rows) {
+  for (const { driver_number: number, position } of rows.starting_grid ?? []) {
+    if (Number.isInteger(number) && Number.isInteger(position) && position > 0) {
+      recording.startingGrid[number] = position;
+    }
+  }
   for (const row of rows.drivers ?? []) {
     if (!Number.isFinite(row.driver_number)) continue;
     const driver = liveDriver(recording, row.driver_number);
@@ -2518,7 +2539,7 @@ function acceptLiveUpdate({ session, connected, rows, source = "openf1", lap = n
     // Driver info can arrive after the first timing burst.
     if (rows?.drivers?.length) state.pairKey = "";
     if (!hadShape && recording.shape) renderShape();
-    if (phase !== previousPhase || !state.battle || rows?.drivers?.length) render();
+    if (phase !== previousPhase || !state.battle || rows?.drivers?.length || rows?.starting_grid?.length) render();
     refreshLiveStatus();
     startLiveClock();
     if (phase === "finished" && previousPhase !== "finished") void syncRace();
@@ -2762,29 +2783,41 @@ function setBadges(a, b) {
   $("override").title = "Gear for the pursuing driver";
 }
 
+function circuitStartingField(recording) {
+  const order = recording.live ? recording.startingGrid
+    : Object.fromEntries(recording.official.results
+      .filter(({ grid }) => Number.isInteger(grid) && grid >= 0)
+      .map(({ number, grid }) => [number, grid]));
+  if (!Object.keys(order).length) return fieldAt(recording.start);
+  return Object.values(recording.participants)
+    .map((driver) => ({ driver, position: order[driver.number] }))
+    .filter(({ position }) => Number.isInteger(position) && position > 0);
+}
+
 function updateMap(a, b, time) {
   const positions = [];
   const showCircuit = !mobileLayout.matches && document.body.dataset.view === "circuit";
   const shape = race.shape;
-  const opening = showCircuit && !race.live && time - race.start < CIRCUIT_LAUNCH_MS && shape?.points.length;
-  const grid = opening ? circuitGrid(smoothCircuitRoute(shape.points), shape.transform[2] * 10) : null;
-  const showReplayField = showCircuit && shape && !race.live;
-  const drivers = grid?.slots.length ? fieldAt(race.start)
-    : showReplayField ? fieldAt(time) : [];
+  const opening = showCircuit && time - race.start < CIRCUIT_LAUNCH_MS;
+  const grid = opening ? circuitOpeningGrid(shape) : null;
+  const drivers = grid ? circuitStartingField(race) : showCircuit && shape ? fieldAt(time) : [];
   for (const { driver, position } of drivers) {
     const samples = mediaSamples(driver, "locations");
     const slot = grid?.slots[position - 1];
-    const point = slot ? null : circuitLocation(samples, time);
+    const point = !slot && shape ? circuitLocation(samples, time) : null;
     if (!slot && !point) continue;
     const [x, y] = point ? mapPoint(point, shape.transform) : [];
-    const pose = slot ? circuitLaunchPose(slot, samples, shape.transform, race.start, time)
+    const pose = slot
+      ? grid.schematic ? slot : circuitLaunchPose(slot, samples, shape.transform, race.start, time)
       : { x, y, heading: circuitHeading(samples, time) };
     const key = driver === a ? "a" : driver === b ? "b" : null;
     positions.push({ ...pose, key, gridPosition: slot ? position : null,
       color: driver.color, code: driver.code, team: driver.team });
   }
   for (const [key, driver] of [["a", a], ["b", b]]) {
+    if (!driver) continue;
     const pin = $(`marker-${key}`);
+    if (!pin) continue;
     const samples = mediaSamples(driver, "locations");
     const point = circuitLocation(samples, time);
     pin.style.display = point && race.shape ? "" : "none";
@@ -2832,10 +2865,15 @@ function syncClock() {
 
 function render() {
   const waiting = race.live && !race.started;
-  document.querySelector(".dashboard").hidden = waiting;
-  $("race-waiting").hidden = !waiting;
+  const showWaitingGrid = waiting && !mobileLayout.matches && document.body.dataset.view === "circuit";
+  document.querySelector(".dashboard").hidden = waiting && !showWaitingGrid;
+  document.body.toggleAttribute("data-circuit-waiting", showWaitingGrid);
+  $("race-waiting").hidden = !waiting || showWaitingGrid;
   syncClock();
-  if (waiting) return;
+  if (waiting) {
+    if (showWaitingGrid) updateMap(null, null, state.time);
+    return;
+  }
   const time = state.time;
   const battles = battlesAt(fieldAt(time));
   const lap = at(state.laps, time)?.[1] ?? 1;
@@ -2843,6 +2881,7 @@ function render() {
   const hadBattle = state.battle;
   state.battle = battle ?? null;
   if (!battle) {
+    updateMap(null, null, time);
     if (!hadBattle && state.listKey === "empty") return;
     $("battle-list").innerHTML = '<p class="chart-empty">No adjacent drivers in this sample.</p>';
     $("battle-select").value = "";
@@ -2851,7 +2890,6 @@ function render() {
     state.listKey = "empty";
     for (const id of ["gap", "distance", "closing", "traction", "a-speed", "b-speed", "speed-delta"]) text(id, missing);
     for (const id of ["overlay-plot", "history-plot", "probability-plot", "matrix-grid", "sector-deltas"]) $(id).innerHTML = '<p class="chart-empty">Timing unavailable</p>';
-    drawCircuitScene([]);
     for (const id of ["radar-cars", "circuit-markers", "power-row"]) $(id).replaceChildren();
     text("pace-winner", "Timing unavailable");
     state.pairKey = "";
