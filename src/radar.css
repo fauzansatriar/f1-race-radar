@@ -798,3 +798,6 @@ body[data-view="data"] .telemetry { display: none; }
 .circuit-camera button { background: #22232b; border: 1px solid var(--edge); color: var(--muted); border-radius: 5px; padding: 6px 9px; font: 700 10px var(--font); }
 .circuit-camera button[aria-pressed="true"] { color: var(--yellow); border-color: var(--yellow); }
 .circuit-camera button:disabled { opacity: .55; cursor: default; }
+
+.circuit-zoom { display: flex; align-items: center; gap: 5px; margin-inline-start: 7px; }
+.circuit-zoom output { min-width: 4ch; text-align: center; color: var(--text); font-size: 10px; }

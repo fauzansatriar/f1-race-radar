@@ -137,6 +137,12 @@
               <button type="button" data-camera="overview" aria-pressed="true">Overview</button>
               <button type="button" data-camera="a" aria-pressed="false" disabled>Follow A</button>
               <button type="button" data-camera="b" aria-pressed="false" disabled>Follow B</button>
+              <div class="circuit-zoom" role="group" aria-label="Circuit zoom">
+                <button id="circuit-zoom-out" type="button" aria-label="Zoom out">−</button>
+                <output id="circuit-zoom-readout" aria-live="polite">1×</output>
+                <button id="circuit-zoom-in" type="button" aria-label="Zoom in">+</button>
+                <button id="circuit-zoom-reset" type="button">Reset zoom</button>
+              </div>
             </div>
           </div>
           <div class="circuit-plot">

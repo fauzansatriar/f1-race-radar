@@ -1,4 +1,12 @@
 let circuitCamera = "overview";
+let circuitZoom = 0;
+const MAX_CIRCUIT_ZOOM = 8;
+
+function setCircuitZoom(step) {
+  circuitZoom = clamp(step, 0, MAX_CIRCUIT_ZOOM);
+  if (state.battle) renderMotion(true);
+  else drawCircuitScene([]);
+}
 const circuitTeamLogos = /*__TEAM_LOGOS__*/ {};
 const circuitLogoImages = new Map();
 
@@ -35,7 +43,7 @@ function drawCircuitScene(cars) {
   const controls = $("circuit-camera");
   controls.hidden = !visible;
   if (!visible) return;
-  for (const button of controls.querySelectorAll("button")) {
+  for (const button of controls.querySelectorAll("button[data-camera]")) {
     const key = button.dataset.camera;
     const driver = state.battle?.[key];
     if (key !== "overview") {
@@ -46,6 +54,11 @@ function drawCircuitScene(cars) {
     button.setAttribute("aria-pressed", String(key === circuitCamera));
   }
   const followed = cars.find((car) => car.key === circuitCamera);
+  const zoom = 2 ** (circuitZoom / 2);
+  text("circuit-zoom-readout", `${Number(zoom.toFixed(1))}×`);
+  $("circuit-zoom-out").disabled = !race.shape || circuitZoom === 0;
+  $("circuit-zoom-in").disabled = !race.shape || circuitZoom === MAX_CIRCUIT_ZOOM;
+  $("circuit-zoom-reset").disabled = !race.shape || circuitZoom === 0;
   text("circuit-scene-status", !race.shape ? "Circuit GPS trace unavailable"
     : circuitCamera !== "overview" && !followed ? "Follow camera waiting for GPS"
     : cars.length ? "One driver has no GPS sample here" : "Driver GPS samples unavailable here");
@@ -64,10 +77,10 @@ function drawCircuitScene(cars) {
   // normalized map units as the GPS trace before projecting either object.
   const unitsPerMetre = (race.shape?.transform[2] ?? 0) * 10;
   const overviewScale = Math.min(width / 345, height / 167);
-  const scale = followed && unitsPerMetre
+  const baseScale = followed && unitsPerMetre
     ? Math.max(overviewScale, Math.min(width / 220, height / 92) / unitsPerMetre)
     : overviewScale;
-  const roadWidth = Math.max(1, 12 * unitsPerMetre * scale * .72);
+  const scale = baseScale * zoom;
   // Map the GPS plane into a pitched camera. The depth below the track is decorative.
   const project = (x, y, elevation = 0) => {
     const dx = x - (followed?.x ?? 210), dy = y - (followed?.y ?? 111);
@@ -101,16 +114,30 @@ function drawCircuitScene(cars) {
     ctx.stroke();
   }
   if (!race.shape?.points.length) return;
-  ctx.lineJoin = ctx.lineCap = "round";
-  for (const [ink, weight, elevation] of [
-    ["#090d14", 16, -.65 * unitsPerMetre], ["#354657", 14, -.3 * unitsPerMetre],
-    ["#bcc9d3", 10, 0], ["#27313b", 7, 0],
+  const route = race.shape.points;
+  const crossSections = route.map(([x, y], index) => {
+    const before = route[(index + route.length - 1) % route.length];
+    const after = route[(index + 1) % route.length];
+    const dx = after[0] - before[0], dy = after[1] - before[1];
+    const length = Math.hypot(dx, dy) || 1;
+    return { x, y, nx: -dy / length, ny: dx / length };
+  });
+  for (const [ink, metres, height] of [
+    ["#101620", 13, -.6], ["#b0bfcd", 12, 0], ["#27313b", 11, 0],
   ]) {
-    path(race.shape.points, elevation);
+    const half = metres * unitsPerMetre / 2;
+    const left = crossSections.map(({ x, y, nx, ny }) => [x + nx * half, y + ny * half]);
+    const right = crossSections.map(({ x, y, nx, ny }) => [x - nx * half, y - ny * half]);
+    path(left, height * unitsPerMetre);
     ctx.closePath();
-    ctx.strokeStyle = ink;
-    ctx.lineWidth = weight * roadWidth / 10;
-    ctx.stroke();
+    right.forEach(([x, y], i) => {
+      const point = project(x, y, height * unitsPerMetre);
+      if (i === 0) ctx.moveTo(...point);
+      else ctx.lineTo(...point);
+    });
+    ctx.closePath();
+    ctx.fillStyle = ink;
+    ctx.fill("evenodd");
   }
   cars.forEach(({ x, y, color, code, heading, team }, index) => {
     const [px, py] = project(x, y);

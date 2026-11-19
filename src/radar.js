@@ -899,6 +899,9 @@ window.addEventListener("hashchange", () => {
 mobileLayout.addEventListener("change", () => { layoutReplayControls(); render(); });
 layoutReplayControls();
 initializeRacePickers();
+$("circuit-zoom-in").addEventListener("click", () => setCircuitZoom(circuitZoom + 1));
+$("circuit-zoom-out").addEventListener("click", () => setCircuitZoom(circuitZoom - 1));
+$("circuit-zoom-reset").addEventListener("click", () => setCircuitZoom(0));
 $("circuit-camera").addEventListener("click", (event) => {
   const button = event.target.closest("button[data-camera]");
   if (!button || button.disabled) return;

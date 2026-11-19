@@ -8,6 +8,10 @@
 
 ## Latest update
 
+**19 November 2026 · Circuit zoom with shared GPS scale**
+
+- Zoom works in Overview and Follow. Track and cars share the same metre scale, and zoom leaves their GPS positions unchanged.
+
 **19 November 2026 · Circuit scale and team badges**
 
 - Circuit car models use an approximate 5.3 m length on the GPS scale. Follow mode zooms in and driver labels show official team logos.
