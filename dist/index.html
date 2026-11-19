@@ -1636,8 +1636,20 @@ function drawCircuitScene(cars, openingGrid) {
     ctx.fill();
   }
   const orderedCars = [...cars].sort((a, b) => project.depth(a.x, a.y) - project.depth(b.x, b.y));
-  for (const { x, y, heading, color } of orderedCars) {
-    drawCircuitCar(ctx, project, x, y, heading, color, unitsPerMetre);
+  const useMarkers = circuitCamera === "overview" && 5.25 * unitsPerMetre * scale < 7;
+  for (const { x, y, heading, color, key } of orderedCars) {
+    if (useMarkers) {
+      const [screenX, screenY] = project(x, y);
+      ctx.beginPath();
+      ctx.arc(screenX, screenY, key ? 3.5 : 2.5, 0, 2 * Math.PI);
+      ctx.fillStyle = color;
+      ctx.fill();
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = key ? "#fff" : "#18212a";
+      ctx.stroke();
+    } else {
+      drawCircuitCar(ctx, project, x, y, heading, color, unitsPerMetre);
+    }
   }
   drawCircuitGridLabels(ctx, grid.slots, width, height, project);
 }
@@ -2728,9 +2740,10 @@ function updateMap(a, b, time) {
   const shape = race.shape;
   const opening = showCircuit && !race.live && time - race.start < CIRCUIT_LAUNCH_MS && shape?.points.length;
   const grid = opening ? circuitGrid(smoothCircuitRoute(shape.points), shape.transform[2] * 10) : null;
-  const cockpitReplay = showCircuit && shape && !race.live && circuitCamera.startsWith("cockpit-");
+  const showReplayField = showCircuit && shape && !race.live
+    && (circuitCamera === "overview" || circuitCamera.startsWith("cockpit-"));
   const drivers = grid?.slots.length ? fieldAt(race.start)
-    : cockpitReplay ? fieldAt(time) : [];
+    : showReplayField ? fieldAt(time) : [];
   for (const { driver, position } of drivers) {
     const samples = mediaSamples(driver, "locations");
     const slot = grid?.slots[position - 1];

@@ -223,8 +223,20 @@ function drawCircuitScene(cars, openingGrid) {
     ctx.fill();
   }
   const orderedCars = [...cars].sort((a, b) => project.depth(a.x, a.y) - project.depth(b.x, b.y));
-  for (const { x, y, heading, color } of orderedCars) {
-    drawCircuitCar(ctx, project, x, y, heading, color, unitsPerMetre);
+  const useMarkers = circuitCamera === "overview" && 5.25 * unitsPerMetre * scale < 7;
+  for (const { x, y, heading, color, key } of orderedCars) {
+    if (useMarkers) {
+      const [screenX, screenY] = project(x, y);
+      ctx.beginPath();
+      ctx.arc(screenX, screenY, key ? 3.5 : 2.5, 0, 2 * Math.PI);
+      ctx.fillStyle = color;
+      ctx.fill();
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = key ? "#fff" : "#18212a";
+      ctx.stroke();
+    } else {
+      drawCircuitCar(ctx, project, x, y, heading, color, unitsPerMetre);
+    }
   }
   drawCircuitGridLabels(ctx, grid.slots, width, height, project);
 }
