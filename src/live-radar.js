@@ -121,28 +121,32 @@ function liveChoice(recording) {
   return `session:${recording.session}`;
 }
 
-function refreshSchedule(sessions, meetings) {
-  const names = new Map(meetings.map((meeting) => [meeting.meeting_key, meeting.meeting_name]));
-  const scheduled = sessions
-    .filter((session) => session.session_name === "Race" && !session.is_cancelled &&
-      Date.parse(session.date_start) > Date.now())
-    .sort((a, b) => Date.parse(a.date_start) - Date.parse(b.date_start));
-  const previous = new Map(scheduledRaces);
-  scheduledRaces.clear();
+function scheduledRaceFor(session) {
+  const byKey = scheduledRaces.get(session.session_key);
+  if (byKey) return byKey;
+  const start = Date.parse(session.date_start);
+  return [...scheduledRaces.values()].find((race) => Math.abs(race.scheduled - start) < 6 * 3_600_000);
+}
+
+function refreshSchedule(sessions) {
+  const scheduled = sessions.filter((session) => Date.parse(session.date_start) > Date.now());
+  const next = new Map();
   for (const session of scheduled) {
-    const recording = liveFeed.recording?.session === session.session_key ? liveFeed.recording
-      : newLiveRace({ ...session, meeting_name: names.get(session.meeting_key) });
-    const saved = previous.get(session.session_key);
-    if (saved === race && !saved.started && recording !== liveFeed.recording) {
-      // Keep the chosen race mounted when its scheduled time or name is corrected.
+    if (liveFeed.recording && Math.abs(liveFeed.recording.scheduled - Date.parse(session.date_start)) < 6 * 3_600_000) continue;
+    const saved = scheduledRaceFor(session);
+    const recording = newLiveRace(session);
+    if (saved === race && !saved.started) {
+      // Keep the grid mounted if the calendar later gains the OpenF1 session key.
       Object.assign(saved, recording);
       text("race-waiting-title", saved.official.name);
       refreshLiveStatus();
-      scheduledRaces.set(session.session_key, saved);
-      continue;
+      next.set(saved.session, saved);
+    } else {
+      next.set(recording.session, recording);
     }
-    scheduledRaces.set(session.session_key, recording);
   }
+  scheduledRaces.clear();
+  for (const [key, recording] of next) scheduledRaces.set(key, recording);
 }
 
 function liveEdge(recording) {
@@ -269,9 +273,15 @@ function acceptLiveUpdate({ session, connected, rows, source = "openf1", lap = n
     if (previous) renderCatalog();
     return;
   }
+  const scheduled = scheduledRaceFor(session);
   const recording = previous?.session === session.session_key ? previous
-    : race.live && race.session === session.session_key ? race
-      : scheduledRaces.get(session.session_key) ?? newLiveRace(session);
+    : race.live && race.session === session.session_key ? race : scheduled ?? newLiveRace(session);
+  if (scheduled === recording) {
+    scheduledRaces.delete(recording.session);
+    recording.session = session.session_key;
+    // A calendar-only entry may have a generic circuit name or a provisional zone.
+    recording.circuit = session.circuit_short_name ?? recording.circuit;
+  }
   liveFeed.recording = recording;
   recording.source = source;
   recording.gmtOffset = session.gmt_offset ?? recording.gmtOffset;
@@ -288,7 +298,7 @@ function acceptLiveUpdate({ session, connected, rows, source = "openf1", lap = n
     }
   }
   const phase = livePhase(recording);
-  if (recording !== previous || phase !== previousPhase) renderCatalog();
+  if (scheduled === recording || recording !== previous || phase !== previousPhase) renderCatalog();
   if (phase === "live" && liveFeed.connected && Date.now() - recording.receivedAt <= LIVE_STALE_MS) {
     const opened = openLiveRadar(recording);
     if (!opened && !state.changedRace && !state.raceRequest && state.timer === null) viewLive(recording);

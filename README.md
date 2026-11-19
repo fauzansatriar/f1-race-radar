@@ -8,6 +8,11 @@
 
 ## Latest update
 
+**19 November 2026 · Jolpica race calendar**
+
+- Jolpica supplies the season calendar, completed race list, classifications and driver standings. Upcoming races appear even when the OpenF1 session list is unavailable. OpenF1 remains the source for replay timing, telemetry and GPS. Live timing comes from the Formula 1 public feed or the configured OpenF1 relay.
+
+
 **19 November 2026 · Estimasi Live**
 
 - On GitHub Pages, desktop Circuit View can use anonymous Formula 1 timing and gaps to estimate car positions. The `Estimasi Live` label identifies the estimated Overview, Follow and Cockpit views.

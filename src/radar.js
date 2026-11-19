@@ -784,7 +784,7 @@ async function selectGP(round) {
     let recording = recordings.get(round);
     if (!recording) {
       if (!entry.session) throw new Error("OpenF1 race session unavailable.");
-      const results = await requestJSON(JOLPICA + round + "/results/?limit=100", controller.signal);
+      const results = await fetchJolpica(round + "/results/", controller.signal);
       const official = readOfficial(results);
       recording = await fetchRace(entry.session, official, controller.signal);
       recordings.set(round, recording);
@@ -824,15 +824,19 @@ async function syncRace() {
   }
   try {
     const selected = race;
-    const [results, standings, sessions, classification, meetings] = await Promise.allSettled([
-      requestJSON(JOLPICA + "results/1/?limit=100"),
-      requestJSON(JOLPICA + "driverstandings/?limit=100"),
+    const [results, standings, sessions, classification, schedule] = await Promise.allSettled([
+      fetchJolpica("results/1/"),
+      fetchJolpica("driverstandings/"),
       fetchOpen("sessions", `year=${SEASON}&session_name=Race`),
-      selected.live ? null : requestJSON(JOLPICA + selected.official.round + "/results/?limit=100"),
-      fetchOpen("meetings", `year=${SEASON}`),
+      selected.live ? null : fetchJolpica(selected.official.round + "/results/"),
+      fetchJolpica(),
     ]);
-    if (sessions.status === "fulfilled") {
-      refreshSchedule(sessions.value, meetings.status === "fulfilled" ? meetings.value : []);
+    const openSessions = sessions.status === "fulfilled" ? sessions.value : [];
+    if (schedule.status === "fulfilled") {
+      refreshSchedule(readSeasonSchedule(schedule.value, openSessions));
+      renderCatalog();
+    } else if (!scheduledRaces.size && openSessions.length) {
+      refreshSchedule(openSessions.filter((session) => session.session_name === "Race" && !session.is_cancelled));
       renderCatalog();
     }
     if (classification.status === "fulfilled" && classification.value) {
@@ -845,7 +849,7 @@ async function syncRace() {
       renderClassification();
     }
     if (results.status === "fulfilled") {
-      const updated = readCatalog(results.value, sessions.status === "fulfilled" ? sessions.value : []);
+      const updated = readCatalog(results.value, openSessions);
       // Keep known completed rounds in case an upstream result disappears temporarily.
       const grouped = new Map(catalog.map((entry) => [entry.round, entry]));
       for (const entry of updated) {

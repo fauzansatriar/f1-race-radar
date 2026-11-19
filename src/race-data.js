@@ -76,13 +76,44 @@ function readOfficial(resultsDocument, standings = []) {
   };
 }
 
+function jolpicaRaceStart(race) {
+  return Date.parse(`${race.date}T${race.time || "12:00:00Z"}`);
+}
+
+function matchOpenF1Race(sessions, scheduled) {
+  let match, best = 12 * 3_600_000;
+  for (const session of sessions) {
+    if (session.is_cancelled || session.session_name !== "Race" || session.year !== SEASON) continue;
+    const gap = Math.abs(Date.parse(session.date_start) - scheduled);
+    if (gap >= best || !Number.isFinite(gap)) continue;
+    best = gap;
+    match = session;
+  }
+  return match;
+}
+
+function readSeasonSchedule(document, sessions) {
+  const races = document?.MRData?.RaceTable?.Races ?? [];
+  return races.filter((race) => race.time).flatMap((race) => {
+    const scheduled = jolpicaRaceStart(race);
+    const round = Number(race.round);
+    if (!Number.isFinite(scheduled) || !Number.isInteger(round) || round < 1) return [];
+    const session = matchOpenF1Race(sessions, scheduled);
+    return [{
+      session_key: session?.session_key ?? -round,
+      date_start: new Date(scheduled).toISOString(),
+      meeting_name: race.raceName,
+      circuit_short_name: session?.circuit_short_name ?? race.Circuit?.circuitName ?? "",
+      gmt_offset: session?.gmt_offset,
+    }];
+  });
+}
+
 function readCatalog(resultsDocument, sessions) {
   const races = resultsDocument.MRData.RaceTable.Races
     .filter((race) => race.season === String(SEASON) && Number(race.Results?.[0]?.laps) > 0);
   return races.map((race) => {
-    const scheduled = Date.parse(`${race.date}T${race.time || "12:00:00Z"}`);
-    const eligible = sessions.filter((session) => !session.is_cancelled && session.session_name === "Race" && session.year === SEASON);
-    const session = eligible.find((entry) => Math.abs(Date.parse(entry.date_start) - scheduled) < 12 * 3_600_000);
+    const session = matchOpenF1Race(sessions, jolpicaRaceStart(race));
     return {
       round: race.round,
       name: race.raceName,
@@ -222,6 +253,10 @@ async function requestJSON(url, signal) {
   return response.json();
 }
 
+function fetchJolpica(endpoint = "", signal) {
+  return requestJSON(JOLPICA + endpoint + "?limit=100", signal);
+}
+
 function fetchOpen(endpoint, query, signal) {
   return requestJSON(OPEN_F1 + endpoint + "?" + query, signal);
 }
@@ -262,4 +297,4 @@ async function fetchBlock(recording, index, signal) {
   return { telemetry: pack(cars, telemetryFields), locations: pack(positions, locationFields) };
 }
 
-if (typeof module !== "undefined") module.exports = { interpolateSample, readOfficial, readStandings, readCatalog, replayWindow, packRace, circuitShape, timedSamples, locationFields };
+if (typeof module !== "undefined") module.exports = { interpolateSample, readOfficial, readStandings, readCatalog, readSeasonSchedule, replayWindow, packRace, circuitShape, timedSamples, locationFields };
