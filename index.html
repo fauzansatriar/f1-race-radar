@@ -1160,13 +1160,44 @@ function readOfficial(resultsDocument, standings = []) {
   };
 }
 
+function jolpicaRaceStart(race) {
+  return Date.parse(`${race.date}T${race.time || "12:00:00Z"}`);
+}
+
+function matchOpenF1Race(sessions, scheduled) {
+  let match, best = 12 * 3_600_000;
+  for (const session of sessions) {
+    if (session.is_cancelled || session.session_name !== "Race" || session.year !== SEASON) continue;
+    const gap = Math.abs(Date.parse(session.date_start) - scheduled);
+    if (gap >= best || !Number.isFinite(gap)) continue;
+    best = gap;
+    match = session;
+  }
+  return match;
+}
+
+function readSeasonSchedule(document, sessions) {
+  const races = document?.MRData?.RaceTable?.Races ?? [];
+  return races.filter((race) => race.time).flatMap((race) => {
+    const scheduled = jolpicaRaceStart(race);
+    const round = Number(race.round);
+    if (!Number.isFinite(scheduled) || !Number.isInteger(round) || round < 1) return [];
+    const session = matchOpenF1Race(sessions, scheduled);
+    return [{
+      session_key: session?.session_key ?? -round,
+      date_start: new Date(scheduled).toISOString(),
+      meeting_name: race.raceName,
+      circuit_short_name: session?.circuit_short_name ?? race.Circuit?.circuitName ?? "",
+      gmt_offset: session?.gmt_offset,
+    }];
+  });
+}
+
 function readCatalog(resultsDocument, sessions) {
   const races = resultsDocument.MRData.RaceTable.Races
     .filter((race) => race.season === String(SEASON) && Number(race.Results?.[0]?.laps) > 0);
   return races.map((race) => {
-    const scheduled = Date.parse(`${race.date}T${race.time || "12:00:00Z"}`);
-    const eligible = sessions.filter((session) => !session.is_cancelled && session.session_name === "Race" && session.year === SEASON);
-    const session = eligible.find((entry) => Math.abs(Date.parse(entry.date_start) - scheduled) < 12 * 3_600_000);
+    const session = matchOpenF1Race(sessions, jolpicaRaceStart(race));
     return {
       round: race.round,
       name: race.raceName,
@@ -1306,6 +1337,10 @@ async function requestJSON(url, signal) {
   return response.json();
 }
 
+function fetchJolpica(endpoint = "", signal) {
+  return requestJSON(JOLPICA + endpoint + "?limit=100", signal);
+}
+
 function fetchOpen(endpoint, query, signal) {
   return requestJSON(OPEN_F1 + endpoint + "?" + query, signal);
 }
@@ -1346,7 +1381,7 @@ async function fetchBlock(recording, index, signal) {
   return { telemetry: pack(cars, telemetryFields), locations: pack(positions, locationFields) };
 }
 
-if (typeof module !== "undefined") module.exports = { interpolateSample, readOfficial, readStandings, readCatalog, replayWindow, packRace, circuitShape, timedSamples, locationFields };
+if (typeof module !== "undefined") module.exports = { interpolateSample, readOfficial, readStandings, readCatalog, readSeasonSchedule, replayWindow, packRace, circuitShape, timedSamples, locationFields };
 </script>
   <script>function car(key, driver) {
   const { color, team } = driver;
@@ -2828,28 +2863,32 @@ function liveChoice(recording) {
   return `session:${recording.session}`;
 }
 
-function refreshSchedule(sessions, meetings) {
-  const names = new Map(meetings.map((meeting) => [meeting.meeting_key, meeting.meeting_name]));
-  const scheduled = sessions
-    .filter((session) => session.session_name === "Race" && !session.is_cancelled &&
-      Date.parse(session.date_start) > Date.now())
-    .sort((a, b) => Date.parse(a.date_start) - Date.parse(b.date_start));
-  const previous = new Map(scheduledRaces);
-  scheduledRaces.clear();
+function scheduledRaceFor(session) {
+  const byKey = scheduledRaces.get(session.session_key);
+  if (byKey) return byKey;
+  const start = Date.parse(session.date_start);
+  return [...scheduledRaces.values()].find((race) => Math.abs(race.scheduled - start) < 6 * 3_600_000);
+}
+
+function refreshSchedule(sessions) {
+  const scheduled = sessions.filter((session) => Date.parse(session.date_start) > Date.now());
+  const next = new Map();
   for (const session of scheduled) {
-    const recording = liveFeed.recording?.session === session.session_key ? liveFeed.recording
-      : newLiveRace({ ...session, meeting_name: names.get(session.meeting_key) });
-    const saved = previous.get(session.session_key);
-    if (saved === race && !saved.started && recording !== liveFeed.recording) {
-      // Keep the chosen race mounted when its scheduled time or name is corrected.
+    if (liveFeed.recording && Math.abs(liveFeed.recording.scheduled - Date.parse(session.date_start)) < 6 * 3_600_000) continue;
+    const saved = scheduledRaceFor(session);
+    const recording = newLiveRace(session);
+    if (saved === race && !saved.started) {
+      // Keep the grid mounted if the calendar later gains the OpenF1 session key.
       Object.assign(saved, recording);
       text("race-waiting-title", saved.official.name);
       refreshLiveStatus();
-      scheduledRaces.set(session.session_key, saved);
-      continue;
+      next.set(saved.session, saved);
+    } else {
+      next.set(recording.session, recording);
     }
-    scheduledRaces.set(session.session_key, recording);
   }
+  scheduledRaces.clear();
+  for (const [key, recording] of next) scheduledRaces.set(key, recording);
 }
 
 function liveEdge(recording) {
@@ -2976,9 +3015,15 @@ function acceptLiveUpdate({ session, connected, rows, source = "openf1", lap = n
     if (previous) renderCatalog();
     return;
   }
+  const scheduled = scheduledRaceFor(session);
   const recording = previous?.session === session.session_key ? previous
-    : race.live && race.session === session.session_key ? race
-      : scheduledRaces.get(session.session_key) ?? newLiveRace(session);
+    : race.live && race.session === session.session_key ? race : scheduled ?? newLiveRace(session);
+  if (scheduled === recording) {
+    scheduledRaces.delete(recording.session);
+    recording.session = session.session_key;
+    // A calendar-only entry may have a generic circuit name or a provisional zone.
+    recording.circuit = session.circuit_short_name ?? recording.circuit;
+  }
   liveFeed.recording = recording;
   recording.source = source;
   recording.gmtOffset = session.gmt_offset ?? recording.gmtOffset;
@@ -2995,7 +3040,7 @@ function acceptLiveUpdate({ session, connected, rows, source = "openf1", lap = n
     }
   }
   const phase = livePhase(recording);
-  if (recording !== previous || phase !== previousPhase) renderCatalog();
+  if (scheduled === recording || recording !== previous || phase !== previousPhase) renderCatalog();
   if (phase === "live" && liveFeed.connected && Date.now() - recording.receivedAt <= LIVE_STALE_MS) {
     const opened = openLiveRadar(recording);
     if (!opened && !state.changedRace && !state.raceRequest && state.timer === null) viewLive(recording);
@@ -3840,7 +3885,7 @@ async function selectGP(round) {
     let recording = recordings.get(round);
     if (!recording) {
       if (!entry.session) throw new Error("OpenF1 race session unavailable.");
-      const results = await requestJSON(JOLPICA + round + "/results/?limit=100", controller.signal);
+      const results = await fetchJolpica(round + "/results/", controller.signal);
       const official = readOfficial(results);
       recording = await fetchRace(entry.session, official, controller.signal);
       recordings.set(round, recording);
@@ -3880,15 +3925,19 @@ async function syncRace() {
   }
   try {
     const selected = race;
-    const [results, standings, sessions, classification, meetings] = await Promise.allSettled([
-      requestJSON(JOLPICA + "results/1/?limit=100"),
-      requestJSON(JOLPICA + "driverstandings/?limit=100"),
+    const [results, standings, sessions, classification, schedule] = await Promise.allSettled([
+      fetchJolpica("results/1/"),
+      fetchJolpica("driverstandings/"),
       fetchOpen("sessions", `year=${SEASON}&session_name=Race`),
-      selected.live ? null : requestJSON(JOLPICA + selected.official.round + "/results/?limit=100"),
-      fetchOpen("meetings", `year=${SEASON}`),
+      selected.live ? null : fetchJolpica(selected.official.round + "/results/"),
+      fetchJolpica(),
     ]);
-    if (sessions.status === "fulfilled") {
-      refreshSchedule(sessions.value, meetings.status === "fulfilled" ? meetings.value : []);
+    const openSessions = sessions.status === "fulfilled" ? sessions.value : [];
+    if (schedule.status === "fulfilled") {
+      refreshSchedule(readSeasonSchedule(schedule.value, openSessions));
+      renderCatalog();
+    } else if (!scheduledRaces.size && openSessions.length) {
+      refreshSchedule(openSessions.filter((session) => session.session_name === "Race" && !session.is_cancelled));
       renderCatalog();
     }
     if (classification.status === "fulfilled" && classification.value) {
@@ -3901,7 +3950,7 @@ async function syncRace() {
       renderClassification();
     }
     if (results.status === "fulfilled") {
-      const updated = readCatalog(results.value, sessions.status === "fulfilled" ? sessions.value : []);
+      const updated = readCatalog(results.value, openSessions);
       // Keep known completed rounds in case an upstream result disappears temporarily.
       const grouped = new Map(catalog.map((entry) => [entry.round, entry]));
       for (const entry of updated) {
