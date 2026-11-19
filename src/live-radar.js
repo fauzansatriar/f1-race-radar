@@ -172,7 +172,10 @@ function refreshLiveStatus() {
   text("live-label", label);
   text("source-status", message);
   text("live-delay", delay);
-  mediaLabel(race.started && race.source === "public" ? "Timing only · sensor and GPS data unavailable" : "");
+  const publicOnly = race.started && race.source === "public";
+  mediaLabel(publicOnly ? (race.estimatedCircuit
+    ? "Estimasi Live · posisi mobil dari timing dan gap"
+    : "Timing only · sensor and GPS data unavailable") : "");
   text("race-waiting-note", race.finished !== null ? "The race has ended. Select its replay when the archive is available."
     : "Radar opens when the live timing feed starts sending race data.");
 }
@@ -244,7 +247,7 @@ function viewLive(recording) {
   startLiveClock();
 }
 
-function acceptLiveUpdate({ session, connected, rows, source = "openf1", lap = null }) {
+function acceptLiveUpdate({ session, connected, rows, source = "openf1", lap = null, pace = null }) {
   const previous = liveFeed.recording;
   const previousPhase = livePhase(previous);
   liveFeed.connected = connected === true;
@@ -260,6 +263,10 @@ function acceptLiveUpdate({ session, connected, rows, source = "openf1", lap = n
   recording.source = source;
   const hadShape = Boolean(recording.shape);
   mergeLiveRows(recording, rows ?? {});
+  if (source === "public") {
+    if (pace >= 55 && pace <= 155) recording.estimatePace = pace;
+    void attachEstimatedCircuit(recording, session);
+  }
   if (lap) {
     recording.official.total = lap.total ?? recording.official.total;
     if (recording.lapClock.at(-1)?.[1] !== lap.count) {

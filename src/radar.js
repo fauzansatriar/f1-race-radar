@@ -208,19 +208,21 @@ function circuitStartingField(recording) {
 function updateMap(a, b, time) {
   const positions = [];
   const showCircuit = !mobileLayout.matches && document.body.dataset.view === "circuit";
-  const shape = race.shape;
+  const shape = circuitDisplayShape(race);
+  const estimate = !race.shape && race.estimatedCircuit;
   const opening = showCircuit && time - race.start < CIRCUIT_LAUNCH_MS;
   const grid = opening ? circuitOpeningGrid(shape) : null;
   const drivers = grid ? circuitStartingField(race) : showCircuit && shape ? fieldAt(time) : [];
   for (const { driver, position } of drivers) {
     const samples = mediaSamples(driver, "locations");
     const slot = grid?.slots[position - 1];
-    const point = !slot && shape ? circuitLocation(samples, time) : null;
-    if (!slot && !point) continue;
+    const estimatedPose = estimate && race.started ? estimatedCircuitPose(race, driver, position, time, slot) : null;
+    const point = !estimate && !slot && shape ? circuitLocation(samples, time) : null;
+    if (!slot && !point && !estimatedPose) continue;
     const [x, y] = point ? mapPoint(point, shape.transform) : [];
-    const pose = slot
-      ? grid.schematic ? slot : circuitLaunchPose(slot, samples, shape.transform, race.start, time)
-      : { x, y, heading: circuitHeading(samples, time) };
+    const pose = estimatedPose ?? (slot
+      ? estimate || grid.schematic ? slot : circuitLaunchPose(slot, samples, shape.transform, race.start, time)
+      : { x, y, heading: circuitHeading(samples, time) });
     const key = driver === a ? "a" : driver === b ? "b" : null;
     positions.push({ ...pose, key, gridPosition: slot ? position : null,
       color: driver.color, code: driver.code, team: driver.team });
@@ -554,7 +556,7 @@ function raceLapTimes(recording) {
 }
 
 function renderShape() {
-  const points = race.shape?.points;
+  const points = circuitDisplayShape(race)?.points;
   drawCircuitScene([]);
   $("circuit-route").setAttribute("d", points?.length ? "M" + points.map((point) => point.join(",")).join(" L") + " Z" : "");
   const finish = $("finish-marker");

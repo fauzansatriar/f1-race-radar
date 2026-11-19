@@ -8,6 +8,13 @@
 
 ## Latest update
 
+**19 November 2026 · Estimasi Live**
+
+- On GitHub Pages, desktop Circuit View can use anonymous Formula 1 timing and gaps to estimate car positions. The `Estimasi Live` label identifies the estimated Overview, Follow and Cockpit views.
+- The Las Vegas circuit map is bundled from [MultiViewer](https://api.multiviewer.app/api/v1/circuits/152/2026). Other supported circuits are loaded by circuit key and season. If a map is unavailable, the public timing panels still work.
+- The estimate uses the leader’s lap clock, recent lap pace and reported gaps. Car placement, racing lines and pit movement can differ from the real race. An available relay GPS trace takes precedence.
+
+
 **19 November 2026 · Starting grids across circuits and live races**
 
 - Desktop Circuit View uses the same numbered starting grid, driver codes and team-logo badges across circuits. It uses published grid positions when available and draws a schematic grid when the circuit trace is unavailable.

@@ -96,11 +96,14 @@ function circuitLaunchPose(slot, samples, transform, start, time) {
 }
 
 function drawCircuitScene(cars, openingGrid) {
+  const shape = circuitDisplayShape(race);
+  text("circuit-title", (race.circuit || race.official.circuit)
+    + (shape?.estimated ? " · Estimasi Live" : " · GPS"));
   const canvas = $("circuit-scene");
   const visible = !mobileLayout.matches && document.body.dataset.view === "circuit";
   canvas.hidden = !visible;
   const status = $("circuit-scene-status");
-  status.hidden = !visible || Boolean(race.shape && cars.some(({ key }) => key === "a") && cars.some(({ key }) => key === "b"));
+  status.hidden = !visible || Boolean(shape && cars.some(({ key }) => key === "a") && cars.some(({ key }) => key === "b"));
   const controls = $("circuit-camera");
   controls.hidden = !visible;
   $("circuit-duel").hidden = !visible || !state.battle;
@@ -118,17 +121,17 @@ function drawCircuitScene(cars, openingGrid) {
     button.setAttribute("aria-pressed", String(key === circuitCamera));
   }
   const followed = cars.find((car) => car.key === circuitCamera.replace("cockpit-", ""));
-  const cockpitReady = cockpit && Boolean(followed && race.shape?.points.length);
+  const cockpitReady = cockpit && Boolean(followed && shape?.points.length);
   if (cockpit && !cockpitReady) status.hidden = false;
   if (openingGrid && (openingGrid.schematic || !cars.length)) status.hidden = false;
   const zoom = 2 ** (circuitZoom / 2);
   text("circuit-zoom-readout", `${Number(zoom.toFixed(1))}×`);
-  $("circuit-zoom-out").disabled = !race.shape || circuitZoom === 0;
-  $("circuit-zoom-in").disabled = !race.shape || circuitZoom === (cockpit ? 2 : MAX_CIRCUIT_ZOOM);
-  $("circuit-zoom-reset").disabled = !race.shape || circuitZoom === 0;
+  $("circuit-zoom-out").disabled = !shape || circuitZoom === 0;
+  $("circuit-zoom-in").disabled = !shape || circuitZoom === (cockpit ? 2 : MAX_CIRCUIT_ZOOM);
+  $("circuit-zoom-reset").disabled = !shape || circuitZoom === 0;
   text("circuit-scene-status", openingGrid && !cars.length ? "Starting order unavailable"
     : openingGrid?.schematic ? "Starting grid · circuit GPS trace unavailable"
-    : !race.shape ? "Circuit GPS trace unavailable"
+    : !shape ? "Circuit GPS trace unavailable"
     : cockpit && !cockpitReady ? "Cockpit waiting for GPS"
     : circuitCamera !== "overview" && !followed ? "Follow camera waiting for GPS"
     : cars.length ? "One driver has no GPS sample here" : "Driver GPS samples unavailable here");
@@ -145,9 +148,9 @@ function drawCircuitScene(cars, openingGrid) {
   ctx.setTransform(density, 0, 0, density, 0, 0);
   // F1 location coordinates use decimetres. Convert metres into the same
   // normalized map units as the GPS trace before projecting either object.
-  const unitsPerMetre = (race.shape?.transform[2] ?? 0) * 10;
-  if (cockpitReady && unitsPerMetre && race.shape?.points.length) {
-    drawCircuitCockpit(ctx, width, height, followed, cars, smoothCircuitRoute(race.shape.points), unitsPerMetre, zoom);
+  const unitsPerMetre = (shape?.transform[2] ?? 0) * 10;
+  if (cockpitReady && unitsPerMetre && shape?.points.length) {
+    drawCircuitCockpit(ctx, width, height, followed, cars, smoothCircuitRoute(shape.points), unitsPerMetre, zoom);
     return;
   }
   if (openingGrid && (circuitCamera === "overview" || openingGrid.schematic)) {
@@ -192,8 +195,8 @@ function drawCircuitScene(cars, openingGrid) {
     path([[-280, y], [700, y]], -10);
     ctx.stroke();
   }
-  if (!race.shape?.points.length) return;
-  const route = smoothCircuitRoute(race.shape.points);
+  if (!shape?.points.length) return;
+  const route = smoothCircuitRoute(shape.points);
   const crossSections = route.map(([x, y], index) => {
     const before = route[(index + route.length - 1) % route.length];
     const after = route[(index + 1) % route.length];

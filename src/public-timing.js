@@ -37,6 +37,7 @@ function readPublicSession(info) {
     meeting_name: info.Meeting?.Name,
     country_name: info.Meeting?.Country?.Name,
     circuit_short_name: info.Meeting?.Circuit?.ShortName,
+    circuit_key: info.Meeting?.Circuit?.Key,
   };
 }
 
@@ -84,7 +85,15 @@ function publicTimingUpdate(topics, changes, snapshot) {
   const lapDate = changes.get("LapCount")?.date ?? timingDate;
   const lap = Number.isInteger(count) && count > 0 && Number.isFinite(Date.parse(lapDate))
     ? { count, total: Number.isInteger(total) && total >= count ? total : null, date: lapDate } : null;
-  return { session, connected: true, source: "public", rows, lap };
+  const pace = Object.values(topics.TimingData?.Lines ?? {})
+    .filter((line) => Number(line?.Position) === 1)
+    .map((line) => parsePublicLapTime(line.LastLapTime?.Value))[0];
+  return { session, connected: true, source: "public", rows, lap, pace };
+}
+
+function parsePublicLapTime(value) {
+  const match = /^(\d+):(\d{2}\.\d+)$/.exec(value ?? "");
+  return match ? Number(match[1]) * 60 + Number(match[2]) : null;
 }
 
 function connectPublicTiming() {

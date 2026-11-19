@@ -62,8 +62,9 @@ def inline_json(value):
 
 css = read('radar.css').replace('/*__FONT_FACES__*/', '\n'.join(font_css))
 app = ('\n'.join(read(file) for file in (
-    'radar-graphics.js', 'circuit-scene.js', 'race-pickers.js', 'public-timing.js', 'live-radar.js', 'radar.js',
+    'radar-graphics.js', 'circuit-scene.js', 'race-pickers.js', 'estimated-circuit.js', 'public-timing.js', 'live-radar.js', 'radar.js',
 ))).replace('/*__PORTRAITS__*/ {}', inline_json(portraits))
+app = app.replace('/*__LAS_VEGAS_CIRCUIT__*/ {}', inline_json(json.loads(read('las-vegas-circuit.json'))))
 app = app.replace('/*__RACE_CACHE__*/ {}', inline_json(cache))
 app = app.replace('/*__CATALOG__*/ []', inline_json(catalog))
 team_logos = {file.stem: asset(file, 'image/webp') for file in sorted((root / 'team-logos').glob('*.webp'))}

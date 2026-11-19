@@ -1512,11 +1512,14 @@ function circuitLaunchPose(slot, samples, transform, start, time) {
 }
 
 function drawCircuitScene(cars, openingGrid) {
+  const shape = circuitDisplayShape(race);
+  text("circuit-title", (race.circuit || race.official.circuit)
+    + (shape?.estimated ? " · Estimasi Live" : " · GPS"));
   const canvas = $("circuit-scene");
   const visible = !mobileLayout.matches && document.body.dataset.view === "circuit";
   canvas.hidden = !visible;
   const status = $("circuit-scene-status");
-  status.hidden = !visible || Boolean(race.shape && cars.some(({ key }) => key === "a") && cars.some(({ key }) => key === "b"));
+  status.hidden = !visible || Boolean(shape && cars.some(({ key }) => key === "a") && cars.some(({ key }) => key === "b"));
   const controls = $("circuit-camera");
   controls.hidden = !visible;
   $("circuit-duel").hidden = !visible || !state.battle;
@@ -1534,17 +1537,17 @@ function drawCircuitScene(cars, openingGrid) {
     button.setAttribute("aria-pressed", String(key === circuitCamera));
   }
   const followed = cars.find((car) => car.key === circuitCamera.replace("cockpit-", ""));
-  const cockpitReady = cockpit && Boolean(followed && race.shape?.points.length);
+  const cockpitReady = cockpit && Boolean(followed && shape?.points.length);
   if (cockpit && !cockpitReady) status.hidden = false;
   if (openingGrid && (openingGrid.schematic || !cars.length)) status.hidden = false;
   const zoom = 2 ** (circuitZoom / 2);
   text("circuit-zoom-readout", `${Number(zoom.toFixed(1))}×`);
-  $("circuit-zoom-out").disabled = !race.shape || circuitZoom === 0;
-  $("circuit-zoom-in").disabled = !race.shape || circuitZoom === (cockpit ? 2 : MAX_CIRCUIT_ZOOM);
-  $("circuit-zoom-reset").disabled = !race.shape || circuitZoom === 0;
+  $("circuit-zoom-out").disabled = !shape || circuitZoom === 0;
+  $("circuit-zoom-in").disabled = !shape || circuitZoom === (cockpit ? 2 : MAX_CIRCUIT_ZOOM);
+  $("circuit-zoom-reset").disabled = !shape || circuitZoom === 0;
   text("circuit-scene-status", openingGrid && !cars.length ? "Starting order unavailable"
     : openingGrid?.schematic ? "Starting grid · circuit GPS trace unavailable"
-    : !race.shape ? "Circuit GPS trace unavailable"
+    : !shape ? "Circuit GPS trace unavailable"
     : cockpit && !cockpitReady ? "Cockpit waiting for GPS"
     : circuitCamera !== "overview" && !followed ? "Follow camera waiting for GPS"
     : cars.length ? "One driver has no GPS sample here" : "Driver GPS samples unavailable here");
@@ -1561,9 +1564,9 @@ function drawCircuitScene(cars, openingGrid) {
   ctx.setTransform(density, 0, 0, density, 0, 0);
   // F1 location coordinates use decimetres. Convert metres into the same
   // normalized map units as the GPS trace before projecting either object.
-  const unitsPerMetre = (race.shape?.transform[2] ?? 0) * 10;
-  if (cockpitReady && unitsPerMetre && race.shape?.points.length) {
-    drawCircuitCockpit(ctx, width, height, followed, cars, smoothCircuitRoute(race.shape.points), unitsPerMetre, zoom);
+  const unitsPerMetre = (shape?.transform[2] ?? 0) * 10;
+  if (cockpitReady && unitsPerMetre && shape?.points.length) {
+    drawCircuitCockpit(ctx, width, height, followed, cars, smoothCircuitRoute(shape.points), unitsPerMetre, zoom);
     return;
   }
   if (openingGrid && (circuitCamera === "overview" || openingGrid.schematic)) {
@@ -1608,8 +1611,8 @@ function drawCircuitScene(cars, openingGrid) {
     path([[-280, y], [700, y]], -10);
     ctx.stroke();
   }
-  if (!race.shape?.points.length) return;
-  const route = smoothCircuitRoute(race.shape.points);
+  if (!shape?.points.length) return;
+  const route = smoothCircuitRoute(shape.points);
   const crossSections = route.map(([x, y], index) => {
     const before = route[(index + route.length - 1) % route.length];
     const after = route[(index + 1) % route.length];
@@ -2111,6 +2114,86 @@ function gpOptions() {
 
 "use strict";
 
+const lasVegasCircuit = {"points":[[2105,-575],[2273,-380],[2394,-245],[2587,-28],[2768,173],[3007,439],[3151,601],[3281,746],[3399,876],[3504,992],[3594,1091],[3708,1234],[3750,1310],[3782,1410],[3789,1534],[3767,1637],[3735,1710],[3670,1803],[3572,1890],[3455,1949],[3372,1973],[3266,1990],[3172,1992],[3023,1972],[2920,1941],[2786,1877],[2624,1775],[2491,1671],[2389,1575],[2298,1484],[2228,1417],[2098,1301],[1964,1223],[1860,1187],[1664,1162],[1563,1171],[1422,1201],[1283,1249],[1153,1314],[1035,1388],[946,1460],[841,1569],[761,1676],[660,1865],[609,2027],[576,2211],[550,2438],[535,2599],[517,2857],[505,3047],[490,3277],[475,3576],[465,3817],[450,4177],[443,4354],[435,4552],[426,4776],[414,5114],[403,5403],[397,5586],[384,5966],[375,6216],[360,6638],[346,7051],[327,7579],[319,7820],[308,8132],[295,8500],[283,8827],[272,9165],[265,9352],[259,9528],[253,9712],[246,9891],[242,10000],[249,10174],[271,10301],[307,10424],[349,10517],[387,10578],[450,10642],[526,10682],[642,10704],[758,10708],[844,10708],[979,10709],[1093,10709],[1298,10711],[1444,10712],[1677,10714],[1920,10715],[2134,10717],[2257,10725],[2470,10765],[2764,10868],[2904,10939],[3087,11051],[3255,11175],[3397,11312],[3546,11495],[3641,11633],[3732,11801],[3787,11932],[3839,12096],[3873,12281],[3875,12383],[3859,12490],[3836,12563],[3816,12605],[3740,12708],[3667,12754],[3603,12777],[3527,12802],[3442,12843],[3377,12901],[3330,12972],[3309,13030],[3300,13149],[3318,13234],[3369,13352],[3461,13517],[3513,13609],[3586,13773],[3607,13862],[3614,13948],[3610,14003],[3585,14111],[3533,14202],[3461,14258],[3393,14281],[3274,14291],[3180,14289],[3084,14286],[3011,14285],[2855,14283],[2662,14278],[2462,14274],[2302,14270],[2103,14266],[1963,14263],[1795,14260],[1554,14257],[1372,14257],[1183,14258],[952,14260],[766,14260],[522,14260],[134,14279],[-119,14319],[-345,14365],[-558,14431],[-846,14549],[-1004,14633],[-1140,14724],[-1278,14836],[-1415,14974],[-1522,15103],[-1609,15225],[-1727,15421],[-1794,15551],[-1879,15733],[-1973,15937],[-2076,16163],[-2156,16333],[-2268,16547],[-2387,16733],[-2545,16926],[-2647,17031],[-2777,17148],[-2882,17233],[-3027,17334],[-3226,17446],[-3433,17536],[-3779,17640],[-3911,17669],[-4122,17711],[-4190,17724],[-4336,17752],[-4454,17770],[-4561,17771],[-4633,17749],[-4723,17680],[-4757,17639],[-4800,17563],[-4831,17469],[-4854,17363],[-4879,17270],[-4924,17151],[-4989,17007],[-5046,16888],[-5110,16754],[-5242,16470],[-5325,16303],[-5382,16196],[-5496,15989],[-5591,15823],[-5695,15642],[-5861,15345],[-5973,15134],[-6068,14953],[-6234,14645],[-6363,14405],[-6423,14290],[-6548,14031],[-6687,13718],[-6790,13467],[-6864,13272],[-6994,12868],[-7091,12531],[-7189,12189],[-7268,11904],[-7366,11509],[-7434,11199],[-7500,10852],[-7554,10524],[-7588,10282],[-7616,10050],[-7657,9618],[-7685,9151],[-7695,8716],[-7696,8209],[-7695,7909],[-7691,7441],[-7689,7148],[-7686,6764],[-7682,6325],[-7680,6036],[-7680,5691],[-7682,5353],[-7685,4936],[-7689,4279],[-7692,3753],[-7695,3217],[-7698,2748],[-7703,2198],[-7708,1727],[-7711,1469],[-7716,1049],[-7721,673],[-7723,461],[-7726,246],[-7729,-54],[-7731,-218],[-7733,-357],[-7734,-496],[-7729,-701],[-7713,-835],[-7686,-940],[-7652,-1019],[-7592,-1117],[-7532,-1182],[-7469,-1225],[-7396,-1253],[-7320,-1267],[-7256,-1276],[-7117,-1319],[-7030,-1373],[-6896,-1478],[-6798,-1555],[-6704,-1617],[-6613,-1659],[-6354,-1705],[-6009,-1717],[-5853,-1722],[-5673,-1717],[-5461,-1712],[-5243,-1706],[-5095,-1702],[-4846,-1696],[-4607,-1690],[-4397,-1684],[-4099,-1676],[-3735,-1665],[-3456,-1656],[-3249,-1651],[-2887,-1644],[-2549,-1646],[-2343,-1647],[-1911,-1655],[-1620,-1655],[-1363,-1654],[-1115,-1652],[-825,-1648],[-610,-1643],[-358,-1639],[-74,-1627],[150,-1617],[389,-1603],[523,-1590],[910,-1507],[1075,-1445],[1334,-1306],[1471,-1217],[1653,-1074],[1744,-984],[1924,-788]],"pace":96};
+
+function circuitDisplayShape(recording) {
+  return recording.shape ?? recording.estimatedCircuit?.shape;
+}
+
+function makeEstimatedCircuit(points, pace) {
+  if (points.length < 40 || points.some(([x, y]) => !Number.isFinite(x) || !Number.isFinite(y))) return null;
+  const samples = points.map(([x, y], index) => [index * 1000, x, y]);
+  const shape = circuitShape(samples, 0, points.length);
+  if (!shape) return null;
+  shape.estimated = true;
+  const route = smoothCircuitRoute(shape.points);
+  const distance = [[0, ...route[0]]];
+  for (const [x, y] of [...route.slice(1), route[0]]) {
+    const [previous, px, py] = distance.at(-1);
+    const span = Math.hypot(x - px, y - py);
+    if (span > 0) distance.push([previous + span, x, y]);
+  }
+  const length = distance.at(-1)[0];
+  return length ? { shape, distance, length, pace: pace >= 55 && pace <= 155 ? pace : 95 } : null;
+}
+
+async function attachEstimatedCircuit(recording, session) {
+  if (recording.shape || recording.estimatedCircuit || recording.estimateRequested) return;
+  const key = Number(session.circuit_key);
+  const vegas = key === 152 || /las vegas/i.test(recording.circuit);
+  if (!vegas && !(Number.isInteger(key) && key > 0)) return;
+  recording.estimateRequested = true;
+  try {
+    let map = lasVegasCircuit;
+    if (!vegas) {
+      const year = new Date(recording.scheduled).getUTCFullYear();
+      const response = await fetch(`https://api.multiviewer.app/api/v1/circuits/${key}/${year}`,
+        { signal: AbortSignal.timeout(5000) });
+      if (!response.ok) return;
+      const data = await response.json();
+      if (data.circuitKey !== key || !Array.isArray(data.x) || data.x.length !== data.y?.length) return;
+      map = { points: data.x.map((x, index) => [x, data.y[index]]), pace: data.candidateLap?.lapTime };
+    }
+    recording.estimatedCircuit = makeEstimatedCircuit(map.points, map.pace);
+    if (race === recording && recording.estimatedCircuit) {
+      renderShape();
+      render();
+    }
+  } catch {
+    // Live timing remains available when the external track map cannot load.
+  }
+}
+
+function estimatedCircuitPose(recording, driver, position, time, slot) {
+  const { shape, distance, length, pace } = recording.estimatedCircuit;
+  const lap = at(recording.lapClock, time);
+  const lapStart = lap?.[1] > 1 ? Math.max(recording.start, lap[0]) : recording.start;
+  const elapsed = Math.max(0, time - lapStart);
+  const duration = (recording.estimatePace ?? pace) * 1000;
+  const gap = interpolateSample(driver.intervals, time, [2], 25000, 25000)?.[2];
+  const delta = Number.isFinite(gap) ? Math.max(0, gap) * 1000 : (position - 1) * 500;
+  const fromStart = time - recording.start;
+  const blend = clamp(fromStart / CIRCUIT_LAUNCH_MS, 0, 1);
+  const release = blend * blend * (3 - 2 * blend);
+  const units = shape.transform[2] * 10;
+  const gridDistance = (8 + (position - 1) * 8 + 2.975) * units;
+  const progress = Math.min(elapsed / duration, .9999) * length;
+  const travelled = fromStart < CIRCUIT_LAUNCH_MS
+    ? progress * (.25 + .75 * release) - gridDistance * (1 - release) - length * delta / duration * release
+    : progress - length * delta / duration;
+  const along = ((travelled % length) + length) % length;
+  const end = Math.min(sampleIndex(distance, along), distance.length - 1);
+  const [a, ax, ay] = distance[end - 1];
+  const [b, bx, by] = distance[end];
+  const t = (along - a) / (b - a);
+  const x = ax + (bx - ax) * t, y = ay + (by - ay) * t;
+  if (slot && release === 0) return slot;
+  return { x: slot ? x * release + slot.x * (1 - release) : x,
+    y: slot ? y * release + slot.y * (1 - release) : y, heading: Math.atan2(by - ay, bx - ax) };
+}
+
+"use strict";
+
 const F1_TIMING_SOCKET = "wss://livetiming.formula1.com/signalrcore";
 const F1_FRAME_END = "\x1e";
 const F1_TIMING_TOPICS = ["SessionInfo", "SessionStatus", "RaceControlMessages",
@@ -2148,6 +2231,7 @@ function readPublicSession(info) {
     meeting_name: info.Meeting?.Name,
     country_name: info.Meeting?.Country?.Name,
     circuit_short_name: info.Meeting?.Circuit?.ShortName,
+    circuit_key: info.Meeting?.Circuit?.Key,
   };
 }
 
@@ -2195,7 +2279,15 @@ function publicTimingUpdate(topics, changes, snapshot) {
   const lapDate = changes.get("LapCount")?.date ?? timingDate;
   const lap = Number.isInteger(count) && count > 0 && Number.isFinite(Date.parse(lapDate))
     ? { count, total: Number.isInteger(total) && total >= count ? total : null, date: lapDate } : null;
-  return { session, connected: true, source: "public", rows, lap };
+  const pace = Object.values(topics.TimingData?.Lines ?? {})
+    .filter((line) => Number(line?.Position) === 1)
+    .map((line) => parsePublicLapTime(line.LastLapTime?.Value))[0];
+  return { session, connected: true, source: "public", rows, lap, pace };
+}
+
+function parsePublicLapTime(value) {
+  const match = /^(\d+):(\d{2}\.\d+)$/.exec(value ?? "");
+  return match ? Number(match[1]) * 60 + Number(match[2]) : null;
 }
 
 function connectPublicTiming() {
@@ -2433,7 +2525,10 @@ function refreshLiveStatus() {
   text("live-label", label);
   text("source-status", message);
   text("live-delay", delay);
-  mediaLabel(race.started && race.source === "public" ? "Timing only · sensor and GPS data unavailable" : "");
+  const publicOnly = race.started && race.source === "public";
+  mediaLabel(publicOnly ? (race.estimatedCircuit
+    ? "Estimasi Live · posisi mobil dari timing dan gap"
+    : "Timing only · sensor and GPS data unavailable") : "");
   text("race-waiting-note", race.finished !== null ? "The race has ended. Select its replay when the archive is available."
     : "Radar opens when the live timing feed starts sending race data.");
 }
@@ -2505,7 +2600,7 @@ function viewLive(recording) {
   startLiveClock();
 }
 
-function acceptLiveUpdate({ session, connected, rows, source = "openf1", lap = null }) {
+function acceptLiveUpdate({ session, connected, rows, source = "openf1", lap = null, pace = null }) {
   const previous = liveFeed.recording;
   const previousPhase = livePhase(previous);
   liveFeed.connected = connected === true;
@@ -2521,6 +2616,10 @@ function acceptLiveUpdate({ session, connected, rows, source = "openf1", lap = n
   recording.source = source;
   const hadShape = Boolean(recording.shape);
   mergeLiveRows(recording, rows ?? {});
+  if (source === "public") {
+    if (pace >= 55 && pace <= 155) recording.estimatePace = pace;
+    void attachEstimatedCircuit(recording, session);
+  }
   if (lap) {
     recording.official.total = lap.total ?? recording.official.total;
     if (recording.lapClock.at(-1)?.[1] !== lap.count) {
@@ -2797,19 +2896,21 @@ function circuitStartingField(recording) {
 function updateMap(a, b, time) {
   const positions = [];
   const showCircuit = !mobileLayout.matches && document.body.dataset.view === "circuit";
-  const shape = race.shape;
+  const shape = circuitDisplayShape(race);
+  const estimate = !race.shape && race.estimatedCircuit;
   const opening = showCircuit && time - race.start < CIRCUIT_LAUNCH_MS;
   const grid = opening ? circuitOpeningGrid(shape) : null;
   const drivers = grid ? circuitStartingField(race) : showCircuit && shape ? fieldAt(time) : [];
   for (const { driver, position } of drivers) {
     const samples = mediaSamples(driver, "locations");
     const slot = grid?.slots[position - 1];
-    const point = !slot && shape ? circuitLocation(samples, time) : null;
-    if (!slot && !point) continue;
+    const estimatedPose = estimate && race.started ? estimatedCircuitPose(race, driver, position, time, slot) : null;
+    const point = !estimate && !slot && shape ? circuitLocation(samples, time) : null;
+    if (!slot && !point && !estimatedPose) continue;
     const [x, y] = point ? mapPoint(point, shape.transform) : [];
-    const pose = slot
-      ? grid.schematic ? slot : circuitLaunchPose(slot, samples, shape.transform, race.start, time)
-      : { x, y, heading: circuitHeading(samples, time) };
+    const pose = estimatedPose ?? (slot
+      ? estimate || grid.schematic ? slot : circuitLaunchPose(slot, samples, shape.transform, race.start, time)
+      : { x, y, heading: circuitHeading(samples, time) });
     const key = driver === a ? "a" : driver === b ? "b" : null;
     positions.push({ ...pose, key, gridPosition: slot ? position : null,
       color: driver.color, code: driver.code, team: driver.team });
@@ -3143,7 +3244,7 @@ function raceLapTimes(recording) {
 }
 
 function renderShape() {
-  const points = race.shape?.points;
+  const points = circuitDisplayShape(race)?.points;
   drawCircuitScene([]);
   $("circuit-route").setAttribute("d", points?.length ? "M" + points.map((point) => point.join(",")).join(" L") + " Z" : "");
   const finish = $("finish-marker");
