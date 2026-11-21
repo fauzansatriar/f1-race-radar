@@ -856,6 +856,57 @@ body[data-view="data"] .telemetry { display: none; }
   background: var(--driver-color);
   content: "";
 }
+
+
+.radar-overtake {
+  position: absolute;
+  inset: 0 0 auto;
+  padding: 6px;
+  text-align: center;
+  color: var(--yellow);
+  font-size: clamp(10px, 1.2vw, 14px);
+  font-weight: 700;
+  pointer-events: none;
+}
+.radar-overtake:not(:empty) { animation: radar-pass-label 180ms ease-out both; }
+@keyframes radar-pass-label { from { opacity: 0; transform: translateY(4px); } }
+
+.radar-energy {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 10px;
+  margin: 0 10px 8px;
+  padding: 7px 3px;
+  border-block: 1px solid var(--edge);
+  align-items: center;
+  font-size: clamp(8px, 1vw, 11px);
+}
+.radar-energy-title { color: var(--muted); font-weight: 700; white-space: nowrap; }
+.radar-energy-driver { display: flex; align-items: baseline; gap: 5px 8px; flex-wrap: wrap; }
+.radar-energy-driver:last-child { justify-content: flex-end; }
+.radar-energy-driver span { color: var(--muted); }
+.radar-energy-driver i {
+  flex: 0 0 100%;
+  height: 3px;
+  background: #333640;
+  overflow: hidden;
+}
+.radar-energy-driver i::after {
+  display: block;
+  height: 100%;
+  background: currentColor;
+  content: "";
+  transform: translateX(-100%);
+}
+.radar-energy-driver[data-energy="deploy"] { color: #ffe272; }
+.radar-energy-driver[data-energy="recover"] { color: #52e5bf; }
+.radar-energy-driver[data-energy="deploy"] i::after { animation: ers-flow 850ms linear infinite; }
+.radar-energy-driver[data-energy="recover"] i::after { animation: ers-flow 850ms linear infinite reverse; }
+@keyframes ers-flow { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) {
+  .radar-overtake:not(:empty), .radar-energy-driver[data-energy] i::after { animation: none; }
+  .radar-energy-driver:is([data-energy="deploy"], [data-energy="recover"]) i::after { transform: none; }
+}
 </style>
 </head>
 <body data-view="radar">
@@ -934,9 +985,19 @@ body[data-view="data"] .telemetry { display: none; }
             <div class="track-grid"></div>
             <div class="track-axis"></div>
             <div id="radar-cars" role="img" aria-label="Relative position of the selected drivers"></div>
+            <output id="radar-overtake" class="radar-overtake" aria-live="polite"></output>
             <div class="aero-status">
               <span class="drs" id="drs">—</span>
               <span class="override" id="override">—</span>
+            </div>
+          </div>
+          <div class="radar-energy" aria-label="Estimated energy recovery and deployment">
+            <div class="radar-energy-driver" id="a-energy" data-energy="missing">
+              <b id="a-energy-code"></b><span id="a-energy-label">Unavailable</span><i aria-hidden="true"></i>
+            </div>
+            <span class="radar-energy-title" title="Estimate from speed, throttle and brake. Battery charge is unavailable.">ERS EST.</span>
+            <div class="radar-energy-driver" id="b-energy" data-energy="missing">
+              <b id="b-energy-code"></b><span id="b-energy-label">Unavailable</span><i aria-hidden="true"></i>
             </div>
           </div>
           <div class="momentum">
@@ -1504,6 +1565,56 @@ function updateView() {
   drawCircuitScene([]);
   $("classification").hidden = mode !== "data";
   $(showingCircuit ? "circuit-slot" : "map-slot").append($("circuit-panel"));
+}
+
+
+let radarPassTimer;
+
+function clearRadarPass() {
+  clearTimeout(radarPassTimer);
+  text("radar-overtake", "");
+  for (const car of $("radar-cars").children) {
+    car.getAnimations().forEach((animation) => animation.cancel());
+  }
+}
+
+function animateRadarPass(previous, battle, starts) {
+  clearRadarPass();
+  text("radar-overtake", `${battle.a.code} overtakes ${previous.a.code}`);
+  radarPassTimer = setTimeout(() => text("radar-overtake", ""), 1800);
+  if (!starts || reduceMotion.matches) return;
+  const lane = Math.min(26, $("radar-cars").parentElement.clientHeight * .17);
+  for (const [role, start, side] of [["a", starts.b, -lane], ["b", starts.a, lane]]) {
+    const car = $(`car-${role}`);
+    const end = car.getBoundingClientRect();
+    const dx = start.x + start.width / 2 - end.x - end.width / 2;
+    const dy = start.y + start.height / 2 - end.y - end.height / 2;
+    car.animate([
+      { translate: `${dx}px ${dy}px` },
+      { translate: `${dx * .85}px ${dy + side}px`, offset: .22 },
+      { translate: `${dx * .17}px ${side}px`, offset: .78 },
+      { translate: "0px 0px" },
+    ], { duration: 980, easing: "cubic-bezier(.35,0,.2,1)" });
+  }
+}
+
+function updateRadarEnergy(role, sample) {
+  const node = $(`${role}-energy`);
+  const [, speed, throttle, brake] = sample ?? [];
+  let mode = "missing", label = "Unavailable";
+  if ([speed, throttle, brake].every(Number.isFinite)) {
+    mode = "neutral";
+    label = "Unclear";
+    if (speed >= 70 && brake >= 50) {
+      mode = "recover";
+      label = "Recovery";
+    } else if (speed >= 100 && throttle >= 90 && brake === 0) {
+      mode = "deploy";
+      label = "Deploy";
+    }
+  }
+  if (node.dataset.energy !== mode) node.dataset.energy = mode;
+  text(`${role}-energy-label`, label);
 }
 
 "use strict";
@@ -3249,6 +3360,7 @@ function setPair({ a, b, position }) {
   for (const [letter, driver] of [["a", a], ["b", b]]) {
     document.body.style.setProperty(`--team-${letter}`, driver.color);
     setDriverCard(letter, driver);
+    text(`${letter}-energy-code`, driver.code);
   }
   $("radar-cars").setAttribute("aria-label", `Relative position of ${a.name} and ${b.name}`);
   $("radar-cars").innerHTML = car("a", a) + car("b", b);
@@ -3424,8 +3536,21 @@ function render() {
   const time = state.time;
   const battles = battlesAt(fieldAt(time));
   const lap = at(state.laps, time)?.[1] ?? 1;
-  const battle = battles.find(({ b }) => b.number === state.selected) ?? battles.find(({ position }) => position === 4) ?? battles[0];
   const hadBattle = state.battle;
+  const advancing = (race.live || state.timer !== null) && Number.isFinite(state.duelTime) && time > state.duelTime && time - state.duelTime < 1500;
+  const tracking = advancing && hadBattle && hadBattle.b.number === state.selected;
+  const passed = tracking && battles.find(({ a, b }) => a === hadBattle.b && b === hadBattle.a);
+  if (tracking && !passed) {
+    const ahead = at(hadBattle.a.positions, time)?.[1];
+    const behind = at(hadBattle.b.positions, time)?.[1];
+    if (ahead === behind && Number.isFinite(ahead)) return;
+  }
+  state.duelTime = time;
+  if (passed) state.selected = passed.b.number;
+  const battle = passed || (battles.find(({ b }) => b.number === state.selected) ?? battles.find(({ position }) => position === 4) ?? battles[0]);
+  const radarPass = passed && document.body.dataset.view === "radar";
+  const starts = radarPass && $("car-a") && $("car-b")
+    ? { a: $("car-a").getBoundingClientRect(), b: $("car-b").getBoundingClientRect() } : null;
   state.battle = battle ?? null;
   if (!battle) {
     updateMap(null, null, time);
@@ -3443,12 +3568,18 @@ function render() {
     text("battle-position", missing);
     text("battle-rank", missing);
     setBadges(null, null);
+    for (const role of ["a", "b"]) {
+      text(`${role}-energy-code`, "");
+      updateRadarEnergy(role, null);
+    }
+    clearRadarPass();
     return;
   }
   if (state.selected === null) state.selected = battle.b.number;
   updateBattleList(battles, battle);
   setPair(battle);
   renderMotion(true);
+  if (radarPass) animateRadarPass(hadBattle, battle, starts);
 
   const { a, b } = battle;
   const gap = battleGap(battle, time);
@@ -3505,6 +3636,8 @@ function renderMotion(drawChart = false) {
   track.style.setProperty("--car-b-x", (35 - separation * .77).toFixed(4));
 
   setBadges(aCar, bCar);
+  updateRadarEnergy("a", aCar);
+  updateRadarEnergy("b", bCar);
   const aSpeed = Number.isFinite(aCar?.[1]) ? Math.round(aCar[1]) : null;
   const bSpeed = Number.isFinite(bCar?.[1]) ? Math.round(bCar[1]) : null;
   text("a-speed", aSpeed);
@@ -3702,6 +3835,8 @@ function renderShape() {
 }
 
 function renderRace() {
+  state.duelTime = null;
+  clearRadarPass();
   resetCircuitMotion();
   resetCircuitOverview();
   $("race-picker").close();
@@ -3735,6 +3870,8 @@ function renderRace() {
 }
 
 function setTime(time) {
+  state.duelTime = null;
+  clearRadarPass();
   resetCircuitMotion();
   state.time = clamp(time, race.start, race.end);
   render();
@@ -3856,6 +3993,8 @@ async function loadShape() {
 
 function selectBattle(number) {
   if (!Number.isFinite(number)) return;
+  state.duelTime = null;
+  clearRadarPass();
   state.selected = number;
   render();
 }
