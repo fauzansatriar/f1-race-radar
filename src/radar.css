@@ -854,39 +854,6 @@ body[data-view="data"] .telemetry { display: none; }
 .radar-overtake:not(:empty) { animation: radar-pass-label 180ms ease-out both; }
 @keyframes radar-pass-label { from { opacity: 0; transform: translateY(4px); } }
 
-.radar-energy {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-  gap: 10px;
-  margin: 0 10px 8px;
-  padding: 7px 3px;
-  border-block: 1px solid var(--edge);
-  align-items: center;
-  font-size: clamp(8px, 1vw, 11px);
-}
-.radar-energy-title { color: var(--muted); font-weight: 700; white-space: nowrap; }
-.radar-energy-driver { display: flex; align-items: baseline; gap: 5px 8px; flex-wrap: wrap; }
-.radar-energy-driver:last-child { justify-content: flex-end; }
-.radar-energy-driver span { color: var(--text); font-variant-numeric: tabular-nums; }
-.radar-energy-driver i {
-  flex: 0 0 100%;
-  height: 4px;
-  background: #333640;
-  overflow: hidden;
-  border-radius: 2px;
-}
-.radar-energy-driver i::after {
-  display: block;
-  width: var(--battery-level, 0%);
-  height: 100%;
-  background: currentColor;
-  content: "";
-  transition: width 160ms linear, background-color 160ms linear;
-}
-.radar-energy-driver[data-energy="deploy"] { color: #ffe272; }
-.radar-energy-driver[data-energy="recover"] { color: #52e5bf; }
-.radar-energy-driver[data-energy="missing"] { color: var(--muted); }
 @media (prefers-reduced-motion: reduce) {
   .radar-overtake:not(:empty) { animation: none; }
-  .radar-energy-driver i::after { transition: none; }
 }

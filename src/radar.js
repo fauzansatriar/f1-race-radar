@@ -120,7 +120,6 @@ function setPair({ a, b, position }) {
   for (const [letter, driver] of [["a", a], ["b", b]]) {
     document.body.style.setProperty(`--team-${letter}`, driver.color);
     setDriverCard(letter, driver);
-    text(`${letter}-energy-code`, driver.code);
   }
   $("radar-cars").setAttribute("aria-label", `Relative position of ${a.name} and ${b.name}`);
   $("radar-cars").innerHTML = car("a", a) + car("b", b);
@@ -328,10 +327,6 @@ function render() {
     text("battle-position", missing);
     text("battle-rank", missing);
     setBadges(null, null);
-    for (const role of ["a", "b"]) {
-      text(`${role}-energy-code`, "");
-      updateRadarEnergy(role, null);
-    }
     clearRadarPass();
     return;
   }
@@ -396,8 +391,6 @@ function renderMotion(drawChart = false) {
   track.style.setProperty("--car-b-x", (35 - separation * .77).toFixed(4));
 
   setBadges(aCar, bCar);
-  updateRadarEnergy("a", a, data[0], time);
-  updateRadarEnergy("b", b, data[1], time);
   const aSpeed = Number.isFinite(aCar?.[1]) ? Math.round(aCar[1]) : null;
   const bSpeed = Number.isFinite(bCar?.[1]) ? Math.round(bCar[1]) : null;
   text("a-speed", aSpeed);
@@ -595,7 +588,6 @@ function renderShape() {
 }
 
 function renderRace() {
-  radarBatteryState.clear();
   state.duelTime = null;
   clearRadarPass();
   resetCircuitMotion();
@@ -631,7 +623,6 @@ function renderRace() {
 }
 
 function setTime(time) {
-  radarBatteryState.clear();
   state.duelTime = null;
   clearRadarPass();
   resetCircuitMotion();
