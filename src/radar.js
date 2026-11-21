@@ -396,8 +396,8 @@ function renderMotion(drawChart = false) {
   track.style.setProperty("--car-b-x", (35 - separation * .77).toFixed(4));
 
   setBadges(aCar, bCar);
-  updateRadarEnergy("a", aCar);
-  updateRadarEnergy("b", bCar);
+  updateRadarEnergy("a", a, data[0], time);
+  updateRadarEnergy("b", b, data[1], time);
   const aSpeed = Number.isFinite(aCar?.[1]) ? Math.round(aCar[1]) : null;
   const bSpeed = Number.isFinite(bCar?.[1]) ? Math.round(bCar[1]) : null;
   text("a-speed", aSpeed);
@@ -595,6 +595,7 @@ function renderShape() {
 }
 
 function renderRace() {
+  radarBatteryState.clear();
   state.duelTime = null;
   clearRadarPass();
   resetCircuitMotion();
@@ -630,6 +631,7 @@ function renderRace() {
 }
 
 function setTime(time) {
+  radarBatteryState.clear();
   state.duelTime = null;
   clearRadarPass();
   resetCircuitMotion();

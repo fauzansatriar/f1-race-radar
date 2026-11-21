@@ -124,21 +124,43 @@ function animateRadarPass(previous, battle, starts) {
   }
 }
 
-function updateRadarEnergy(role, sample) {
-  const node = $(`${role}-energy`);
+const radarBatteryState = new Map();
+
+function radarBatteryMode(sample) {
   const [, speed, throttle, brake] = sample ?? [];
-  let mode = "missing", label = "Unavailable";
-  if ([speed, throttle, brake].every(Number.isFinite)) {
-    mode = "neutral";
-    label = "Unclear";
-    if (speed >= 70 && brake >= 50) {
-      mode = "recover";
-      label = "Recovery";
-    } else if (speed >= 100 && throttle >= 90 && brake === 0) {
-      mode = "deploy";
-      label = "Deploy";
-    }
+  if (![speed, throttle, brake].every(Number.isFinite)) return "missing";
+  if (speed >= 70 && brake >= 50) return "recover";
+  if (speed >= 100 && throttle >= 90 && brake === 0) return "deploy";
+  return "neutral";
+}
+
+function integrateRadarBattery(samples, from, to, start) {
+  let charge = start;
+  for (let i = Math.max(0, sampleIndex(samples, from) - 1); i < samples.length && samples[i][0] < to; i++) {
+    const sample = samples[i];
+    const end = Math.min(to, samples[i + 1]?.[0] ?? to, sample[0] + 1500);
+    const seconds = Math.max(0, end - Math.max(from, sample[0])) / 1000;
+    const mode = radarBatteryMode(sample);
+    const rate = mode === "recover" ? 6 : mode === "deploy" ? -2.4 : 0;
+    charge = clamp(charge + rate * seconds, 0, 100);
+  }
+  return charge;
+}
+
+function updateRadarEnergy(role, driver, samples = [], time = state.time) {
+  const node = $(`${role}-energy`);
+  const sample = recentSample(samples, time, 2000);
+  const mode = radarBatteryMode(sample);
+  let level = null;
+  if (driver && mode !== "missing") {
+    const previous = radarBatteryState.get(driver.number);
+    const continuous = previous && time >= previous.time;
+    level = integrateRadarBattery(samples, continuous ? previous.time : samples[0][0],
+      time, continuous ? previous.level : 100);
+    radarBatteryState.set(driver.number, { time, level });
   }
   if (node.dataset.energy !== mode) node.dataset.energy = mode;
-  text(`${role}-energy-label`, label);
+  const percent = level === null ? null : Math.round(level);
+  node.style.setProperty("--battery-level", `${percent ?? 0}%`);
+  text(`${role}-energy-label`, percent === null ? "—" : `${percent}%`);
 }

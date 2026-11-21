@@ -867,26 +867,26 @@ body[data-view="data"] .telemetry { display: none; }
 .radar-energy-title { color: var(--muted); font-weight: 700; white-space: nowrap; }
 .radar-energy-driver { display: flex; align-items: baseline; gap: 5px 8px; flex-wrap: wrap; }
 .radar-energy-driver:last-child { justify-content: flex-end; }
-.radar-energy-driver span { color: var(--muted); }
+.radar-energy-driver span { color: var(--text); font-variant-numeric: tabular-nums; }
 .radar-energy-driver i {
   flex: 0 0 100%;
-  height: 3px;
+  height: 4px;
   background: #333640;
   overflow: hidden;
+  border-radius: 2px;
 }
 .radar-energy-driver i::after {
   display: block;
+  width: var(--battery-level, 0%);
   height: 100%;
   background: currentColor;
   content: "";
-  transform: translateX(-100%);
+  transition: width 160ms linear, background-color 160ms linear;
 }
 .radar-energy-driver[data-energy="deploy"] { color: #ffe272; }
 .radar-energy-driver[data-energy="recover"] { color: #52e5bf; }
-.radar-energy-driver[data-energy="deploy"] i::after { animation: ers-flow 850ms linear infinite; }
-.radar-energy-driver[data-energy="recover"] i::after { animation: ers-flow 850ms linear infinite reverse; }
-@keyframes ers-flow { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+.radar-energy-driver[data-energy="missing"] { color: var(--muted); }
 @media (prefers-reduced-motion: reduce) {
-  .radar-overtake:not(:empty), .radar-energy-driver[data-energy] i::after { animation: none; }
-  .radar-energy-driver:is([data-energy="deploy"], [data-energy="recover"]) i::after { transform: none; }
+  .radar-overtake:not(:empty) { animation: none; }
+  .radar-energy-driver i::after { transition: none; }
 }
