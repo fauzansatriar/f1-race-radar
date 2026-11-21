@@ -92,3 +92,53 @@ function updateView() {
   $("classification").hidden = mode !== "data";
   $(showingCircuit ? "circuit-slot" : "map-slot").append($("circuit-panel"));
 }
+
+
+let radarPassTimer;
+
+function clearRadarPass() {
+  clearTimeout(radarPassTimer);
+  text("radar-overtake", "");
+  for (const car of $("radar-cars").children) {
+    car.getAnimations().forEach((animation) => animation.cancel());
+  }
+}
+
+function animateRadarPass(previous, battle, starts) {
+  clearRadarPass();
+  text("radar-overtake", `${battle.a.code} overtakes ${previous.a.code}`);
+  radarPassTimer = setTimeout(() => text("radar-overtake", ""), 1800);
+  if (!starts || reduceMotion.matches) return;
+  const lane = Math.min(26, $("radar-cars").parentElement.clientHeight * .17);
+  for (const [role, start, side] of [["a", starts.b, -lane], ["b", starts.a, lane]]) {
+    const car = $(`car-${role}`);
+    const end = car.getBoundingClientRect();
+    const dx = start.x + start.width / 2 - end.x - end.width / 2;
+    const dy = start.y + start.height / 2 - end.y - end.height / 2;
+    car.animate([
+      { translate: `${dx}px ${dy}px` },
+      { translate: `${dx * .85}px ${dy + side}px`, offset: .22 },
+      { translate: `${dx * .17}px ${side}px`, offset: .78 },
+      { translate: "0px 0px" },
+    ], { duration: 980, easing: "cubic-bezier(.35,0,.2,1)" });
+  }
+}
+
+function updateRadarEnergy(role, sample) {
+  const node = $(`${role}-energy`);
+  const [, speed, throttle, brake] = sample ?? [];
+  let mode = "missing", label = "Unavailable";
+  if ([speed, throttle, brake].every(Number.isFinite)) {
+    mode = "neutral";
+    label = "Unclear";
+    if (speed >= 70 && brake >= 50) {
+      mode = "recover";
+      label = "Recovery";
+    } else if (speed >= 100 && throttle >= 90 && brake === 0) {
+      mode = "deploy";
+      label = "Deploy";
+    }
+  }
+  if (node.dataset.energy !== mode) node.dataset.energy = mode;
+  text(`${role}-energy-label`, label);
+}

@@ -120,6 +120,7 @@ function setPair({ a, b, position }) {
   for (const [letter, driver] of [["a", a], ["b", b]]) {
     document.body.style.setProperty(`--team-${letter}`, driver.color);
     setDriverCard(letter, driver);
+    text(`${letter}-energy-code`, driver.code);
   }
   $("radar-cars").setAttribute("aria-label", `Relative position of ${a.name} and ${b.name}`);
   $("radar-cars").innerHTML = car("a", a) + car("b", b);
@@ -295,8 +296,21 @@ function render() {
   const time = state.time;
   const battles = battlesAt(fieldAt(time));
   const lap = at(state.laps, time)?.[1] ?? 1;
-  const battle = battles.find(({ b }) => b.number === state.selected) ?? battles.find(({ position }) => position === 4) ?? battles[0];
   const hadBattle = state.battle;
+  const advancing = (race.live || state.timer !== null) && Number.isFinite(state.duelTime) && time > state.duelTime && time - state.duelTime < 1500;
+  const tracking = advancing && hadBattle && hadBattle.b.number === state.selected;
+  const passed = tracking && battles.find(({ a, b }) => a === hadBattle.b && b === hadBattle.a);
+  if (tracking && !passed) {
+    const ahead = at(hadBattle.a.positions, time)?.[1];
+    const behind = at(hadBattle.b.positions, time)?.[1];
+    if (ahead === behind && Number.isFinite(ahead)) return;
+  }
+  state.duelTime = time;
+  if (passed) state.selected = passed.b.number;
+  const battle = passed || (battles.find(({ b }) => b.number === state.selected) ?? battles.find(({ position }) => position === 4) ?? battles[0]);
+  const radarPass = passed && document.body.dataset.view === "radar";
+  const starts = radarPass && $("car-a") && $("car-b")
+    ? { a: $("car-a").getBoundingClientRect(), b: $("car-b").getBoundingClientRect() } : null;
   state.battle = battle ?? null;
   if (!battle) {
     updateMap(null, null, time);
@@ -314,12 +328,18 @@ function render() {
     text("battle-position", missing);
     text("battle-rank", missing);
     setBadges(null, null);
+    for (const role of ["a", "b"]) {
+      text(`${role}-energy-code`, "");
+      updateRadarEnergy(role, null);
+    }
+    clearRadarPass();
     return;
   }
   if (state.selected === null) state.selected = battle.b.number;
   updateBattleList(battles, battle);
   setPair(battle);
   renderMotion(true);
+  if (radarPass) animateRadarPass(hadBattle, battle, starts);
 
   const { a, b } = battle;
   const gap = battleGap(battle, time);
@@ -376,6 +396,8 @@ function renderMotion(drawChart = false) {
   track.style.setProperty("--car-b-x", (35 - separation * .77).toFixed(4));
 
   setBadges(aCar, bCar);
+  updateRadarEnergy("a", aCar);
+  updateRadarEnergy("b", bCar);
   const aSpeed = Number.isFinite(aCar?.[1]) ? Math.round(aCar[1]) : null;
   const bSpeed = Number.isFinite(bCar?.[1]) ? Math.round(bCar[1]) : null;
   text("a-speed", aSpeed);
@@ -573,6 +595,8 @@ function renderShape() {
 }
 
 function renderRace() {
+  state.duelTime = null;
+  clearRadarPass();
   resetCircuitMotion();
   resetCircuitOverview();
   $("race-picker").close();
@@ -606,6 +630,8 @@ function renderRace() {
 }
 
 function setTime(time) {
+  state.duelTime = null;
+  clearRadarPass();
   resetCircuitMotion();
   state.time = clamp(time, race.start, race.end);
   render();
@@ -727,6 +753,8 @@ async function loadShape() {
 
 function selectBattle(number) {
   if (!Number.isFinite(number)) return;
+  state.duelTime = null;
+  clearRadarPass();
   state.selected = number;
   render();
 }

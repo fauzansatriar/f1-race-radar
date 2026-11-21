@@ -86,9 +86,19 @@
             <div class="track-grid"></div>
             <div class="track-axis"></div>
             <div id="radar-cars" role="img" aria-label="Relative position of the selected drivers"></div>
+            <output id="radar-overtake" class="radar-overtake" aria-live="polite"></output>
             <div class="aero-status">
               <span class="drs" id="drs">—</span>
               <span class="override" id="override">—</span>
+            </div>
+          </div>
+          <div class="radar-energy" aria-label="Estimated energy recovery and deployment">
+            <div class="radar-energy-driver" id="a-energy" data-energy="missing">
+              <b id="a-energy-code"></b><span id="a-energy-label">Unavailable</span><i aria-hidden="true"></i>
+            </div>
+            <span class="radar-energy-title" title="Estimate from speed, throttle and brake. Battery charge is unavailable.">ERS EST.</span>
+            <div class="radar-energy-driver" id="b-energy" data-energy="missing">
+              <b id="b-energy-code"></b><span id="b-energy-label">Unavailable</span><i aria-hidden="true"></i>
             </div>
           </div>
           <div class="momentum">
