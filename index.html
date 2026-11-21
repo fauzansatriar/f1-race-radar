@@ -884,28 +884,28 @@ body[data-view="data"] .telemetry { display: none; }
 .radar-energy-title { color: var(--muted); font-weight: 700; white-space: nowrap; }
 .radar-energy-driver { display: flex; align-items: baseline; gap: 5px 8px; flex-wrap: wrap; }
 .radar-energy-driver:last-child { justify-content: flex-end; }
-.radar-energy-driver span { color: var(--muted); }
+.radar-energy-driver span { color: var(--text); font-variant-numeric: tabular-nums; }
 .radar-energy-driver i {
   flex: 0 0 100%;
-  height: 3px;
+  height: 4px;
   background: #333640;
   overflow: hidden;
+  border-radius: 2px;
 }
 .radar-energy-driver i::after {
   display: block;
+  width: var(--battery-level, 0%);
   height: 100%;
   background: currentColor;
   content: "";
-  transform: translateX(-100%);
+  transition: width 160ms linear, background-color 160ms linear;
 }
 .radar-energy-driver[data-energy="deploy"] { color: #ffe272; }
 .radar-energy-driver[data-energy="recover"] { color: #52e5bf; }
-.radar-energy-driver[data-energy="deploy"] i::after { animation: ers-flow 850ms linear infinite; }
-.radar-energy-driver[data-energy="recover"] i::after { animation: ers-flow 850ms linear infinite reverse; }
-@keyframes ers-flow { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+.radar-energy-driver[data-energy="missing"] { color: var(--muted); }
 @media (prefers-reduced-motion: reduce) {
-  .radar-overtake:not(:empty), .radar-energy-driver[data-energy] i::after { animation: none; }
-  .radar-energy-driver:is([data-energy="deploy"], [data-energy="recover"]) i::after { transform: none; }
+  .radar-overtake:not(:empty) { animation: none; }
+  .radar-energy-driver i::after { transition: none; }
 }
 </style>
 </head>
@@ -991,13 +991,13 @@ body[data-view="data"] .telemetry { display: none; }
               <span class="override" id="override">—</span>
             </div>
           </div>
-          <div class="radar-energy" aria-label="Estimated energy recovery and deployment">
+          <div class="radar-energy" role="group" aria-label="Simulated battery charge">
             <div class="radar-energy-driver" id="a-energy" data-energy="missing">
-              <b id="a-energy-code"></b><span id="a-energy-label">Unavailable</span><i aria-hidden="true"></i>
+              <b id="a-energy-code"></b><span id="a-energy-label">—</span><i aria-hidden="true"></i>
             </div>
-            <span class="radar-energy-title" title="Estimate from speed, throttle and brake. Battery charge is unavailable.">ERS EST.</span>
+            <span class="radar-energy-title" title="Simulated charge calculated from speed, throttle and brake.">BATTERY SIM.</span>
             <div class="radar-energy-driver" id="b-energy" data-energy="missing">
-              <b id="b-energy-code"></b><span id="b-energy-label">Unavailable</span><i aria-hidden="true"></i>
+              <b id="b-energy-code"></b><span id="b-energy-label">—</span><i aria-hidden="true"></i>
             </div>
           </div>
           <div class="momentum">
@@ -1598,23 +1598,45 @@ function animateRadarPass(previous, battle, starts) {
   }
 }
 
-function updateRadarEnergy(role, sample) {
-  const node = $(`${role}-energy`);
+const radarBatteryState = new Map();
+
+function radarBatteryMode(sample) {
   const [, speed, throttle, brake] = sample ?? [];
-  let mode = "missing", label = "Unavailable";
-  if ([speed, throttle, brake].every(Number.isFinite)) {
-    mode = "neutral";
-    label = "Unclear";
-    if (speed >= 70 && brake >= 50) {
-      mode = "recover";
-      label = "Recovery";
-    } else if (speed >= 100 && throttle >= 90 && brake === 0) {
-      mode = "deploy";
-      label = "Deploy";
-    }
+  if (![speed, throttle, brake].every(Number.isFinite)) return "missing";
+  if (speed >= 70 && brake >= 50) return "recover";
+  if (speed >= 100 && throttle >= 90 && brake === 0) return "deploy";
+  return "neutral";
+}
+
+function integrateRadarBattery(samples, from, to, start) {
+  let charge = start;
+  for (let i = Math.max(0, sampleIndex(samples, from) - 1); i < samples.length && samples[i][0] < to; i++) {
+    const sample = samples[i];
+    const end = Math.min(to, samples[i + 1]?.[0] ?? to, sample[0] + 1500);
+    const seconds = Math.max(0, end - Math.max(from, sample[0])) / 1000;
+    const mode = radarBatteryMode(sample);
+    const rate = mode === "recover" ? 6 : mode === "deploy" ? -2.4 : 0;
+    charge = clamp(charge + rate * seconds, 0, 100);
+  }
+  return charge;
+}
+
+function updateRadarEnergy(role, driver, samples = [], time = state.time) {
+  const node = $(`${role}-energy`);
+  const sample = recentSample(samples, time, 2000);
+  const mode = radarBatteryMode(sample);
+  let level = null;
+  if (driver && mode !== "missing") {
+    const previous = radarBatteryState.get(driver.number);
+    const continuous = previous && time >= previous.time;
+    level = integrateRadarBattery(samples, continuous ? previous.time : samples[0][0],
+      time, continuous ? previous.level : 100);
+    radarBatteryState.set(driver.number, { time, level });
   }
   if (node.dataset.energy !== mode) node.dataset.energy = mode;
-  text(`${role}-energy-label`, label);
+  const percent = level === null ? null : Math.round(level);
+  node.style.setProperty("--battery-level", `${percent ?? 0}%`);
+  text(`${role}-energy-label`, percent === null ? "—" : `${percent}%`);
 }
 
 "use strict";
@@ -3636,8 +3658,8 @@ function renderMotion(drawChart = false) {
   track.style.setProperty("--car-b-x", (35 - separation * .77).toFixed(4));
 
   setBadges(aCar, bCar);
-  updateRadarEnergy("a", aCar);
-  updateRadarEnergy("b", bCar);
+  updateRadarEnergy("a", a, data[0], time);
+  updateRadarEnergy("b", b, data[1], time);
   const aSpeed = Number.isFinite(aCar?.[1]) ? Math.round(aCar[1]) : null;
   const bSpeed = Number.isFinite(bCar?.[1]) ? Math.round(bCar[1]) : null;
   text("a-speed", aSpeed);
@@ -3835,6 +3857,7 @@ function renderShape() {
 }
 
 function renderRace() {
+  radarBatteryState.clear();
   state.duelTime = null;
   clearRadarPass();
   resetCircuitMotion();
@@ -3870,6 +3893,7 @@ function renderRace() {
 }
 
 function setTime(time) {
+  radarBatteryState.clear();
   state.duelTime = null;
   clearRadarPass();
   resetCircuitMotion();
