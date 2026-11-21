@@ -875,6 +875,30 @@ body[data-view="data"] .telemetry { display: none; }
 .radar-overtake:not(:empty) { animation: radar-pass-label 180ms ease-out both; }
 @keyframes radar-pass-label { from { opacity: 0; transform: translateY(4px); } }
 
+@media (max-width: 670px), (max-width: 960px) and (max-height: 500px) and (pointer: coarse) {
+  .radar-shell[data-pass] {
+    --pass-separation: max(
+      var(--radar-a-x) - var(--radar-b-x),
+      var(--radar-b-x) - var(--radar-a-x)
+    );
+  }
+  .radar-shell[data-pass] :is(.driver-b, .override) {
+    opacity: clamp(.24, calc(var(--pass-separation) / 32), 1);
+  }
+  .radar-shell[data-pass] .radar-car.b {
+    opacity: clamp(.48, calc(var(--pass-separation) / 27), 1);
+  }
+  .radar-overtake:not(:empty) {
+    width: max-content;
+    max-width: calc(100% - 16px);
+    inset: 2px auto auto 50%;
+    translate: -50% 0;
+    padding: 3px 8px;
+    background: #17181c;
+    border-bottom: 1px solid var(--yellow);
+    z-index: 3;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .radar-overtake:not(:empty) { animation: none; }
   .radar-shell { transition: none; }
