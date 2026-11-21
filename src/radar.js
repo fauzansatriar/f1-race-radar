@@ -310,6 +310,10 @@ function render() {
   const radarPass = passed && document.body.dataset.view === "radar";
   const starts = radarPass && $("car-a") && $("car-b")
     ? { a: $("car-a").getBoundingClientRect(), b: $("car-b").getBoundingClientRect() } : null;
+  if (radarPass) {
+    clearRadarPass();
+    $("radar-shell").dataset.pass = "";
+  }
   state.battle = battle ?? null;
   if (!battle) {
     updateMap(null, null, time);
@@ -386,9 +390,11 @@ function renderMotion(drawChart = false) {
   text("gap", typeof gap === "string" ? gap : fixed(gap, 3, "s"));
   text("distance", validGap && Number.isFinite(nowSpeed) ? `≈ ${(gap * nowSpeed / 3.6).toFixed(1)} m` : missing);
   const separation = validGap ? 22 * gap / (gap + 2) : 11;
-  const track = $("car-a").closest(".radar-track");
-  track.style.setProperty("--car-a-x", (67 + separation * .62).toFixed(4));
-  track.style.setProperty("--car-b-x", (35 - separation * .77).toFixed(4));
+  if (!radarPassMotion) {
+    const shell = $("radar-shell");
+    shell.style.setProperty("--car-a-x", (67 + separation * .62).toFixed(4));
+    shell.style.setProperty("--car-b-x", (35 - separation * .77).toFixed(4));
+  }
 
   setBadges(aCar, bCar);
   const aSpeed = Number.isFinite(aCar?.[1]) ? Math.round(aCar[1]) : null;

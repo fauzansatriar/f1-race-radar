@@ -174,12 +174,39 @@ body[data-live-source="public"] .telemetry { display: none; }
   padding: 2px 0 12px 17px;
 }
 #battle-position { color: var(--team-a); margin-right: .24em; }
-.radar-shell { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
-.radar-heading { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 9px; padding: 14px 14px 0; z-index: 1; }
-.radar-heading h2 { text-transform: none; font-size: 15px; white-space: nowrap; }
+@property --car-a-x { syntax: "<number>"; inherits: true; initial-value: 75; }
+@property --car-b-x { syntax: "<number>"; inherits: true; initial-value: 25; }
+@property --pass-a-x { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --pass-b-x { syntax: "<number>"; inherits: true; initial-value: 0; }
+.radar-shell {
+  --radar-inset: 15px;
+  --driver-height: 45px;
+  --radar-a-x: calc(var(--car-a-x) + var(--pass-a-x));
+  --radar-b-x: calc(var(--car-b-x) + var(--pass-b-x));
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  transition: --car-a-x 140ms ease-out, --car-b-x 140ms ease-out;
+}
+.radar-shell[data-pass] { transition: none; }
+.radar-heading {
+  position: relative;
+  height: calc(var(--driver-height) + 30px);
+  flex: none;
+  margin: 0 var(--radar-inset);
+  padding-top: 9px;
+  text-align: center;
+  z-index: 1;
+}
+.radar-heading h2 { margin: 0; text-transform: none; font-size: 13px; white-space: nowrap; }
 .driver {
-  height: 45px;
-  width: clamp(118px, 11.1vw, 164px);
+  position: absolute;
+  bottom: 0;
+  left: calc(var(--profile-x) * 1%);
+  transform: translateX(-50%);
+  height: var(--driver-height);
+  width: min(clamp(118px, 11.1vw, 164px), 34%);
   display: flex;
   align-items: center;
   overflow: hidden;
@@ -189,13 +216,9 @@ body[data-live-source="public"] .telemetry { display: none; }
   font-size: clamp(11px, 1.1vw, 16px);
   white-space: nowrap;
 }
-.driver-a { --driver: var(--team-a); justify-self: start; }
-.driver-b {
-  --driver: var(--team-b);
-  justify-self: end;
-  width: clamp(121px, 11.5vw, 170px);
-  background: linear-gradient(260deg, color-mix(in srgb, var(--driver) 45%, #171a1e), #202429 82%);
-}
+.driver-a { --driver: var(--team-a); --profile-x: var(--radar-a-x); }
+.driver-b { --driver: var(--team-b); --profile-x: var(--radar-b-x); }
+.radar-shell[data-pass] :is(.driver-a, .radar-car.a, .drs) { z-index: 2; }
 .driver strong { flex: 1; text-align: center; padding-inline: 3px; }
 .driver-identity {
   position: relative;
@@ -230,7 +253,7 @@ body[data-live-source="public"] .telemetry { display: none; }
 .gap-readout > div { font-weight: 700; font-size: clamp(31px, 3.05vw, 54px); letter-spacing: -.035em; line-height: 1.05; }
 .metric-colon { font-family: Arial, sans-serif; }
 .gap-readout output { display: block; font-size: clamp(17px, 1.55vw, 26px); margin-top: 6px; }
-.radar-track { container-type: inline-size; position: relative; flex: 1; margin: 0 15px; min-height: 126px; overflow: hidden; }
+.radar-track { container-type: inline-size; position: relative; flex: 1; margin: 0 var(--radar-inset); min-height: 126px; overflow: hidden; }
 .track-grid {
   position: absolute;
   inset: 0 0 13%;
@@ -250,14 +273,14 @@ body[data-live-source="public"] .telemetry { display: none; }
   filter: drop-shadow(0 4px 5px #000c);
 }
 .radar-car.team-car { aspect-ratio: 3.3; object-fit: contain; object-position: center bottom; }
-.radar-car.a { --car-x: var(--car-a-x, 75); }
-.radar-car.b { --car-x: var(--car-b-x, 25); width: 26.2%; filter: drop-shadow(0 1px 9px color-mix(in srgb, var(--car) 52%, transparent)); }
+.radar-car.a { --car-x: var(--radar-a-x); }
+.radar-car.b { --car-x: var(--radar-b-x); filter: drop-shadow(0 1px 9px color-mix(in srgb, var(--car) 52%, transparent)); }
 .aero-status { position: absolute; top: 62%; inset-inline: 0; }
 .aero-status span { position: absolute; left: 0; transform: translate3d(calc(var(--car-x) * 1cqw - 50%), 0, 0); z-index: 0; padding: 6px 8px; border-radius: 7px; font-size: clamp(9px, 1.02vw, 15px); font-weight: 700; line-height: 1.1; color: #121711; background: var(--tag); box-shadow: 0 4px 13px color-mix(in srgb, var(--tag) 46%, transparent); white-space: nowrap; }
 .aero-status span::before { content: ""; position: absolute; bottom: 100%; left: 50%; height: 41px; width: 1px; transform: rotate(33deg); transform-origin: bottom center; background: var(--tag); opacity: .65; }
 .aero-status span + span::before { transform: rotate(-33deg); }
-.drs { --car-x: var(--car-a-x, 75); --tag: #a0f128; }
-.override { --car-x: var(--car-b-x, 25); --tag: #11dbe9; }
+.drs { --car-x: var(--radar-a-x); --tag: #a0f128; }
+.override { --car-x: var(--radar-b-x); --tag: #11dbe9; }
 .aero-status .inactive { --tag: #30343c; color: #c9c9d0; box-shadow: none; }
 .aero-status .inactive::before { display: none; }
 .momentum { display: grid; grid-template-columns: 1.05fr 1fr; margin: 0 10px 10px; padding: 9px 5px; min-height: 50px; align-items: center; border-radius: 7px; background: #24252a; text-align: center; font-size: clamp(10px, 1.26vw, 19px); white-space: nowrap; }
@@ -563,18 +586,17 @@ body[data-view="data"] .telemetry { display: none; }
   .radar h1 { display: flex; align-items: center; justify-content: space-between; font-size: 23px; line-height: 1.1; padding: 0 1px 8px; }
   .mobile-radar-title { display: inline; }
   #battle-position { margin-right: 0; padding: 5px 8px; border-radius: 6px; background: color-mix(in srgb, var(--team-a) 15%, #191a1f); font-size: 14px; }
-  .radar-shell { min-height: 240px; }
-  .radar-heading { padding: 10px 9px 0; gap: 8px; }
-  .radar-heading h2 { visibility: hidden; width: 0; }
-  .driver, .driver-b { width: clamp(105px, 33vw, 160px); height: 40px; font-size: clamp(10px, 3vw, 14px); }
+  .radar-shell { --radar-inset: 9px; --driver-height: 40px; min-height: 240px; }
+  .radar-heading { height: calc(var(--driver-height) + 10px); padding: 0; }
+  .radar-heading h2 { display: none; }
+  .driver { width: min(clamp(105px, 33vw, 160px), 34%); font-size: clamp(10px, 3vw, 14px); }
   .driver-identity, .driver-identity:has(img[hidden]) { flex-basis: 35px; }
   .driver-number { font-size: 14px; }
   .gap-readout { margin: 10px 0 -6px; }
   .gap-readout > div { font-size: clamp(27px, 8.4vw, 42px); }
   .gap-readout output { font-size: 15px; margin-top: 3px; }
-  .radar-track { margin: 0 9px; min-height: clamp(95px, calc(100svh - 630px), 205px); }
+  .radar-track { min-height: clamp(95px, calc(100svh - 630px), 205px); }
   .radar-car { width: 27%; }
-  .radar-car.b { width: 28.6%; }
   .aero-status span { font-size: 8px; padding: 5px; }
   .aero-status span::before { height: 19px; }
   .momentum { margin: 0 7px 7px; min-height: 0; padding: 8px 3px; font-size: clamp(8px, 2.3vw, 11px); }
@@ -640,8 +662,7 @@ body[data-view="data"] .telemetry { display: none; }
   .upper, body[data-view="data"] .upper, body[data-view="circuit"] .upper { gap: 8px; }
   .radar h1 { font-size: 21px; padding-bottom: 6px; }
   .radar-shell { min-height: 0; }
-  .radar-heading { padding-top: 8px; }
-  .driver, .driver-b { height: 36px; }
+  .radar-shell { --driver-height: 36px; }
   .gap-readout { margin-top: 7px; margin-bottom: -8px; }
   .radar-track { min-height: 83px; }
   .momentum { padding-block: 6px; }
@@ -873,6 +894,7 @@ body[data-view="data"] .telemetry { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
   .radar-overtake:not(:empty) { animation: none; }
+  .radar-shell { transition: none; }
 }
 </style>
 </head>
@@ -938,11 +960,11 @@ body[data-view="data"] .telemetry { display: none; }
 
       <section class="radar" aria-labelledby="battle-title">
         <h1 id="battle-title"><span class="mobile-radar-title">1v1 Radar</span><span id="battle-position">—</span> <span class="desktop-radar-title">BATTLE FOR <span id="battle-rank">—</span></span></h1>
-        <div class="radar-shell panel">
+        <div class="radar-shell panel" id="radar-shell">
           <div class="radar-heading">
             <div class="driver driver-a"><span class="driver-identity"><span class="driver-number" id="a-number">—</span><img id="a-photo" alt="" hidden></span><strong id="a-name">—</strong></div>
             <h2>1v1 Radar</h2>
-            <div class="driver driver-b"><strong id="b-name">—</strong><span class="driver-identity"><span class="driver-number" id="b-number">—</span><img id="b-photo" alt="" hidden></span></div>
+            <div class="driver driver-b"><span class="driver-identity"><span class="driver-number" id="b-number">—</span><img id="b-photo" alt="" hidden></span><strong id="b-name">—</strong></div>
           </div>
           <div class="gap-readout">
             <div>GAP<span class="metric-colon">:</span> <strong id="gap">—</strong></div>
@@ -1527,33 +1549,37 @@ function updateView() {
 
 
 let radarPassTimer;
+let radarPassMotion = null;
 
 function clearRadarPass() {
   clearTimeout(radarPassTimer);
   text("radar-overtake", "");
-  for (const car of $("radar-cars").children) {
-    car.getAnimations().forEach((animation) => animation.cancel());
-  }
+  radarPassMotion?.cancel();
+  radarPassMotion = null;
+  delete $("radar-shell").dataset.pass;
 }
 
 function animateRadarPass(previous, battle, starts) {
-  clearRadarPass();
   text("radar-overtake", `${battle.a.code} overtakes ${previous.a.code}`);
   radarPassTimer = setTimeout(() => text("radar-overtake", ""), 1800);
-  if (!starts || reduceMotion.matches) return;
-  const lane = Math.min(26, $("radar-cars").parentElement.clientHeight * .17);
-  for (const [role, start, side] of [["a", starts.b, -lane], ["b", starts.a, lane]]) {
-    const car = $(`car-${role}`);
-    const end = car.getBoundingClientRect();
-    const dx = start.x + start.width / 2 - end.x - end.width / 2;
-    const dy = start.y + start.height / 2 - end.y - end.height / 2;
-    car.animate([
-      { translate: `${dx}px ${dy}px` },
-      { translate: `${dx * .85}px ${dy + side}px`, offset: .22 },
-      { translate: `${dx * .17}px ${side}px`, offset: .78 },
-      { translate: "0px 0px" },
-    ], { duration: 980, easing: "cubic-bezier(.35,0,.2,1)" });
+  const shell = $("radar-shell");
+  const trackWidth = $("radar-cars").parentElement.getBoundingClientRect().width;
+  if (!starts || reduceMotion.matches || !trackWidth) {
+    delete shell.dataset.pass;
+    return;
   }
+  const center = (rect) => rect.x + rect.width / 2;
+  const offset = (role, start) => 100 * (center(start) - center($(`car-${role}`).getBoundingClientRect())) / trackWidth;
+  const motion = shell.animate([
+    { "--pass-a-x": offset("a", starts.b), "--pass-b-x": offset("b", starts.a) },
+    { "--pass-a-x": 0, "--pass-b-x": 0 },
+  ], { duration: 980, easing: "cubic-bezier(.42,0,.26,1)" });
+  radarPassMotion = motion;
+  motion.finished.then(() => {
+    if (radarPassMotion !== motion) return;
+    radarPassMotion = null;
+    delete shell.dataset.pass;
+  }, () => {});
 }
 
 "use strict";
@@ -3489,6 +3515,10 @@ function render() {
   const radarPass = passed && document.body.dataset.view === "radar";
   const starts = radarPass && $("car-a") && $("car-b")
     ? { a: $("car-a").getBoundingClientRect(), b: $("car-b").getBoundingClientRect() } : null;
+  if (radarPass) {
+    clearRadarPass();
+    $("radar-shell").dataset.pass = "";
+  }
   state.battle = battle ?? null;
   if (!battle) {
     updateMap(null, null, time);
@@ -3565,9 +3595,11 @@ function renderMotion(drawChart = false) {
   text("gap", typeof gap === "string" ? gap : fixed(gap, 3, "s"));
   text("distance", validGap && Number.isFinite(nowSpeed) ? `≈ ${(gap * nowSpeed / 3.6).toFixed(1)} m` : missing);
   const separation = validGap ? 22 * gap / (gap + 2) : 11;
-  const track = $("car-a").closest(".radar-track");
-  track.style.setProperty("--car-a-x", (67 + separation * .62).toFixed(4));
-  track.style.setProperty("--car-b-x", (35 - separation * .77).toFixed(4));
+  if (!radarPassMotion) {
+    const shell = $("radar-shell");
+    shell.style.setProperty("--car-a-x", (67 + separation * .62).toFixed(4));
+    shell.style.setProperty("--car-b-x", (35 - separation * .77).toFixed(4));
+  }
 
   setBadges(aCar, bCar);
   const aSpeed = Number.isFinite(aCar?.[1]) ? Math.round(aCar[1]) : null;

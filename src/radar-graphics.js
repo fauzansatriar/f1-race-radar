@@ -95,31 +95,35 @@ function updateView() {
 
 
 let radarPassTimer;
+let radarPassMotion = null;
 
 function clearRadarPass() {
   clearTimeout(radarPassTimer);
   text("radar-overtake", "");
-  for (const car of $("radar-cars").children) {
-    car.getAnimations().forEach((animation) => animation.cancel());
-  }
+  radarPassMotion?.cancel();
+  radarPassMotion = null;
+  delete $("radar-shell").dataset.pass;
 }
 
 function animateRadarPass(previous, battle, starts) {
-  clearRadarPass();
   text("radar-overtake", `${battle.a.code} overtakes ${previous.a.code}`);
   radarPassTimer = setTimeout(() => text("radar-overtake", ""), 1800);
-  if (!starts || reduceMotion.matches) return;
-  const lane = Math.min(26, $("radar-cars").parentElement.clientHeight * .17);
-  for (const [role, start, side] of [["a", starts.b, -lane], ["b", starts.a, lane]]) {
-    const car = $(`car-${role}`);
-    const end = car.getBoundingClientRect();
-    const dx = start.x + start.width / 2 - end.x - end.width / 2;
-    const dy = start.y + start.height / 2 - end.y - end.height / 2;
-    car.animate([
-      { translate: `${dx}px ${dy}px` },
-      { translate: `${dx * .85}px ${dy + side}px`, offset: .22 },
-      { translate: `${dx * .17}px ${side}px`, offset: .78 },
-      { translate: "0px 0px" },
-    ], { duration: 980, easing: "cubic-bezier(.35,0,.2,1)" });
+  const shell = $("radar-shell");
+  const trackWidth = $("radar-cars").parentElement.getBoundingClientRect().width;
+  if (!starts || reduceMotion.matches || !trackWidth) {
+    delete shell.dataset.pass;
+    return;
   }
+  const center = (rect) => rect.x + rect.width / 2;
+  const offset = (role, start) => 100 * (center(start) - center($(`car-${role}`).getBoundingClientRect())) / trackWidth;
+  const motion = shell.animate([
+    { "--pass-a-x": offset("a", starts.b), "--pass-b-x": offset("b", starts.a) },
+    { "--pass-a-x": 0, "--pass-b-x": 0 },
+  ], { duration: 980, easing: "cubic-bezier(.42,0,.26,1)" });
+  radarPassMotion = motion;
+  motion.finished.then(() => {
+    if (radarPassMotion !== motion) return;
+    radarPassMotion = null;
+    delete shell.dataset.pass;
+  }, () => {});
 }
